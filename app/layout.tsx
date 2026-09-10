@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "DocSlot Portal",
@@ -8,8 +11,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">{children}</body>
+    <html lang="en" className={`${inter.variable} h-full`}>
+      <body className="min-h-full flex flex-col bg-slate-100 text-slate-900">{children}</body>
     </html>
   );
 }

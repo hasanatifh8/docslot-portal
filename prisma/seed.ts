@@ -39,12 +39,11 @@ async function main() {
     data: { clinicId: clinic.id, name: "Dr. Sharma", specialty: "Orthodontist", slotMinutes: 30 },
   });
 
-  // Mon–Sat 10:00–13:00 and 17:00–20:00 for both
+  // Mon–Sat 10:00–18:00 for both
   const windows: { doctorId: string; weekday: number; startMin: number; endMin: number }[] = [];
   for (const doctorId of [mehra.id, sharma.id]) {
     for (let wd = 1; wd <= 6; wd++) {
-      windows.push({ doctorId, weekday: wd, startMin: 600, endMin: 780 });
-      windows.push({ doctorId, weekday: wd, startMin: 1020, endMin: 1200 });
+      windows.push({ doctorId, weekday: wd, startMin: 600, endMin: 1080 });
     }
   }
   await prisma.workingHour.createMany({ data: windows });

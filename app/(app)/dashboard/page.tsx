@@ -1,8 +1,17 @@
+import { CalendarX2, CheckCircle2, CalendarClock, UserX } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { fmt, statusBadge } from "@/lib/format";
+import { fmt } from "@/lib/format";
 import { setAppointmentStatus } from "@/app/actions/appointments";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  statusTone,
+} from "@/components/ui";
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -27,59 +36,87 @@ export default async function DashboardPage() {
   ]);
 
   const count = (s: string) => counts.find((c) => c.status === s)?._count ?? 0;
+  const now = Date.now();
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Today</h1>
-        <p className="text-sm text-slate-500">
-          {formatInTimeZone(new Date(), tz, "EEEE, d MMMM yyyy")} · {clinic.name}
-        </p>
+    <div>
+      <PageHeader
+        title="Today"
+        description={`${formatInTimeZone(new Date(), tz, "EEEE, d MMMM yyyy")} · ${clinic.name}`}
+      />
+
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat icon={CalendarClock} label="Booked" value={count("booked")} tone="text-brand-600" />
+        <Stat icon={CheckCircle2} label="Completed" value={count("completed")} tone="text-emerald-600" />
+        <Stat icon={UserX} label="No-shows" value={count("no_show")} tone="text-amber-600" />
+        <Stat icon={CalendarX2} label="Cancelled" value={count("cancelled")} tone="text-red-500" />
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <Stat label="Booked" value={count("booked")} />
-        <Stat label="Completed" value={count("completed")} />
-        <Stat label="No-shows" value={count("no_show")} />
-      </div>
-
-      <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
-        {appts.length === 0 && (
-          <p className="p-6 text-sm text-slate-500">No appointments today.</p>
+      <Card>
+        {appts.length === 0 ? (
+          <EmptyState
+            icon={CalendarClock}
+            title="No appointments today"
+            description="New bookings from WhatsApp will show up here automatically."
+          />
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {appts.map((a) => {
+              const past = a.endAt.getTime() < now;
+              return (
+                <li key={a.id} className="flex items-center gap-4 px-5 py-3.5">
+                  <div className="w-16 shrink-0">
+                    <div className={`text-sm font-semibold ${past ? "text-slate-400" : "text-slate-900"}`}>
+                      {fmt(a.startAt, tz, "h:mm")}
+                    </div>
+                    <div className="text-[11px] uppercase text-slate-400">{fmt(a.startAt, tz, "a")}</div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-slate-900">
+                      {a.patient.name || a.patient.waPhone}
+                    </div>
+                    <div className="truncate text-xs text-slate-500">
+                      {a.doctor.name} · {a.doctor.specialty}
+                      {a.source === "frontdesk" && " · front desk"}
+                    </div>
+                  </div>
+                  <Badge tone={statusTone(a.status)}>{a.status.replace("_", " ")}</Badge>
+                  {a.status === "booked" && (
+                    <div className="flex gap-1.5">
+                      <StatusButton id={a.id} status="completed" label="Done" />
+                      <StatusButton id={a.id} status="no_show" label="No-show" />
+                      <StatusButton id={a.id} status="cancelled" label="Cancel" />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         )}
-        {appts.map((a) => (
-          <div key={a.id} className="flex items-center gap-4 border-b border-slate-100 p-4 last:border-0">
-            <div className="w-16 shrink-0 text-sm font-semibold">{fmt(a.startAt, tz, "h:mm a")}</div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{a.patient.name || a.patient.waPhone}</div>
-              <div className="truncate text-xs text-slate-500">
-                {a.doctor.name} · {a.doctor.specialty}
-                {a.source === "frontdesk" && " · front desk"}
-              </div>
-            </div>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(a.status)}`}>
-              {a.status}
-            </span>
-            {a.status === "booked" && (
-              <div className="flex gap-1">
-                <StatusButton id={a.id} status="completed" label="Done" />
-                <StatusButton id={a.id} status="no_show" label="No-show" />
-                <StatusButton id={a.id} status="cancelled" label="Cancel" />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+      </Card>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  tone: string;
+}) {
   return (
-    <div className="rounded-xl bg-white p-4 ring-1 ring-slate-200">
-      <div className="text-2xl font-semibold">{value}</div>
-      <div className="text-xs text-slate-500">{label}</div>
-    </div>
+    <Card className="p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-slate-500">{label}</span>
+        <Icon className={`h-4 w-4 ${tone}`} />
+      </div>
+      <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{value}</div>
+    </Card>
   );
 }
 
@@ -88,9 +125,9 @@ function StatusButton({ id, status, label }: { id: string; status: string; label
     <form action={setAppointmentStatus}>
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="status" value={status} />
-      <button className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50">
+      <Button variant="secondary" size="sm">
         {label}
-      </button>
+      </Button>
     </form>
   );
 }
