@@ -1,19 +1,10 @@
-import { ClipboardList, Plus } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { fmt } from "@/lib/format";
-import { setAppointmentStatus, frontdeskBook } from "@/app/actions/appointments";
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Field,
-  Input,
-  PageHeader,
-  Select,
-  statusTone,
-} from "@/components/ui";
+import { setAppointmentStatus } from "@/app/actions/appointments";
+import { Badge, Button, Card, EmptyState, PageHeader, statusTone } from "@/components/ui";
+import { FrontdeskForm } from "@/components/frontdesk-form";
 
 export default async function AppointmentsPage() {
   const user = await requireUser();
@@ -36,45 +27,7 @@ export default async function AppointmentsPage() {
     <div>
       <PageHeader title="Appointments" description="Every booking, newest first" />
 
-      <details className="group mb-6">
-        <summary className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
-          <Plus className="h-4 w-4 text-slate-400 transition group-open:rotate-45" />
-          Book manually (front desk)
-        </summary>
-        <Card className="mt-3 p-5">
-          <form action={frontdeskBook} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Doctor">
-              <Select name="doctorId" required>
-                {doctors.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} — {d.specialty}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Patient name">
-              <Input name="patientName" placeholder="Rahul Verma" />
-            </Field>
-            <Field label="WhatsApp number" hint="With country code, e.g. 919812345678">
-              <Input name="waPhone" required placeholder="919812345678" />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Date">
-                <Input type="date" name="date" required />
-              </Field>
-              <Field label="Time">
-                <Input type="time" name="time" required />
-              </Field>
-            </div>
-            <Field label="Note (optional)" className="sm:col-span-2">
-              <Input name="note" placeholder="Follow-up visit" />
-            </Field>
-            <div className="sm:col-span-2">
-              <Button type="submit">Book appointment</Button>
-            </div>
-          </form>
-        </Card>
-      </details>
+      <FrontdeskForm doctors={doctors.map((d) => ({ id: d.id, name: d.name, specialty: d.specialty }))} />
 
       <Card>
         {appts.length === 0 ? (

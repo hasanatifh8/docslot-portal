@@ -76,7 +76,7 @@ const clinicSchema = z.object({
   name: z.string().min(2),
   timezone: z.string().min(1),
   addressText: z.string().optional(),
-  mapsUrl: z.string().url().optional().or(z.literal("")),
+  mapsUrl: z.string().optional(),
   prepInstructions: z.string().optional(),
   reminderOffsets: z.string().regex(/^(\d+)(,\s*\d+)*$/, "Comma-separated minutes, e.g. 1440,120"),
 });

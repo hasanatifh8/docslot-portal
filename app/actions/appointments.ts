@@ -22,11 +22,14 @@ export async function setAppointmentStatus(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
-// Front-desk manual booking.
-export async function frontdeskBook(formData: FormData) {
+export type BookState = { error?: string; ok?: boolean };
+
+// Front-desk manual booking. Returns a form state instead of throwing so the
+// UI can show a friendly message (used with useActionState).
+export async function frontdeskBook(_prev: BookState, formData: FormData): Promise<BookState> {
   const user = await requireUser();
   const clinic = await prisma.clinic.findUnique({ where: { id: user.clinicId } });
-  if (!clinic) return;
+  if (!clinic) return { error: "Clinic not found." };
 
   const doctorId = String(formData.get("doctorId"));
   const date = String(formData.get("date")); // yyyy-MM-dd
@@ -36,15 +39,24 @@ export async function frontdeskBook(formData: FormData) {
   const note = String(formData.get("note") || "").trim() || null;
 
   const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId: clinic.id } });
-  if (!doctor || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time) || !waPhone) return;
+  if (!doctor) return { error: "Pick a doctor." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return { error: "Pick a date and time." };
+  if (waPhone.length < 10) return { error: "Enter a valid WhatsApp number with country code." };
 
   const startAt = fromZonedTime(`${date}T${time}:00`, clinic.timezone);
   const endAt = new Date(startAt.getTime() + doctor.slotMinutes * 60_000);
 
   const clash = await prisma.appointment.findFirst({
     where: { doctorId, status: "booked", startAt: { lt: endAt }, endAt: { gt: startAt } },
+    include: { patient: true },
   });
-  if (clash) throw new Error("That slot is already booked.");
+  if (clash) {
+    return {
+      error: `${doctor.name} already has a booking that overlaps ${time} on ${date}${
+        clash.patient.name ? ` (${clash.patient.name})` : ""
+      }. Pick another time.`,
+    };
+  }
 
   const patient = await prisma.patient.upsert({
     where: { clinicId_waPhone: { clinicId: clinic.id, waPhone } },
@@ -79,4 +91,5 @@ export async function frontdeskBook(formData: FormData) {
 
   revalidatePath("/appointments");
   revalidatePath("/dashboard");
+  return { ok: true };
 }
