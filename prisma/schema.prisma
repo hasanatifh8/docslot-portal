@@ -1,0 +1,172 @@
+// DocSlot portal — data model
+// Local dev uses SQLite (zero setup). For production switch `provider` to
+// "postgresql" and point DATABASE_URL at Neon/Supabase/RDS, then re-run migrate.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Tenant ────────────────────────────────────────────────────────────────
+
+model Clinic {
+  id        String   @id @default(cuid())
+  name      String
+  // Short slug patients send as the first WhatsApp message so the shared demo
+  // number knows which clinic they want, e.g. wa.me/<num>?text=sunrise
+  code      String   @unique
+  timezone  String   @default("Asia/Kolkata")
+
+  // Location + prep info sent right after a booking is confirmed
+  addressText  String?
+  mapsUrl      String?
+  prepInstructions String?
+
+  // WhatsApp Cloud API — set once the clinic runs on its OWN number.
+  // Left null during the shared-demo-number phase.
+  whatsappPhoneNumberId String? @unique
+  whatsappToken         String?
+
+  // Reminder offsets in minutes before the appointment
+  reminderOffsets String @default("1440,120") // 24h, 2h
+
+  createdAt DateTime @default(now())
+
+  users         User[]
+  doctors       Doctor[]
+  holidays      Holiday[]
+  patients      Patient[]
+  appointments  Appointment[]
+  conversations Conversation[]
+}
+
+// ─── Portal auth ───────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  clinicId     String
+  clinic       Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+
+  sessions Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// ─── Scheduling config ─────────────────────────────────────────────────────
+
+model Doctor {
+  id            String  @id @default(cuid())
+  clinicId      String
+  clinic        Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  name          String
+  specialty     String
+  slotMinutes   Int     @default(15)
+  // Buffer between appointments, minutes
+  bufferMinutes Int     @default(0)
+  active        Boolean @default(true)
+  createdAt     DateTime @default(now())
+
+  workingHours WorkingHour[]
+  appointments Appointment[]
+}
+
+// One row per weekday window a doctor sees patients.
+model WorkingHour {
+  id        String @id @default(cuid())
+  doctorId  String
+  doctor    Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  // 0 = Sunday … 6 = Saturday
+  weekday   Int
+  // Minutes from midnight, clinic-local. e.g. 540 = 09:00, 780 = 13:00
+  startMin  Int
+  endMin    Int
+}
+
+// Full-day closures (clinic-wide).
+model Holiday {
+  id       String   @id @default(cuid())
+  clinicId String
+  clinic   Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  date     DateTime // date only; time part ignored
+  reason   String?
+}
+
+// ─── Patients & bookings ───────────────────────────────────────────────────
+
+model Patient {
+  id        String   @id @default(cuid())
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  waPhone   String   // E.164, digits only
+  name      String?
+  createdAt DateTime @default(now())
+
+  appointments Appointment[]
+
+  @@unique([clinicId, waPhone])
+}
+
+model Appointment {
+  id        String   @id @default(cuid())
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctorId  String
+  doctor    Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  startAt   DateTime
+  endAt     DateTime
+  status    String   @default("booked") // booked | cancelled | completed | no_show
+  source    String   @default("whatsapp") // whatsapp | frontdesk
+  note      String?
+
+  createdAt DateTime @default(now())
+
+  reminders Reminder[]
+
+  @@index([clinicId, startAt])
+  @@index([doctorId, startAt])
+}
+
+model Reminder {
+  id            String   @id @default(cuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  sendAt        DateTime
+  offsetMinutes Int
+  sentAt        DateTime?
+
+  @@index([sendAt, sentAt])
+}
+
+// ─── WhatsApp conversation state ───────────────────────────────────────────
+
+model Conversation {
+  id        String   @id @default(cuid())
+  waPhone   String   @unique
+  clinicId  String?
+  clinic    Clinic?  @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
+  // Simple state machine — see lib/conversation.ts
+  step      String   @default("start")
+  // JSON blob of in-progress selections (doctorId, date, slot, name…)
+  draft     String   @default("{}")
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
