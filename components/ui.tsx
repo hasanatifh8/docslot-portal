@@ -164,6 +164,22 @@ export function PageHeader({
   );
 }
 
+export function AuthShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-gradient-to-b from-slate-100 to-slate-200 p-6">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-brand-500/40 blur-2xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-32 -right-20 h-[28rem] w-[28rem] rounded-full bg-brand-600/30 blur-2xl"
+      />
+      <div className="relative w-full max-w-sm">{children}</div>
+    </div>
+  );
+}
+
 export function EmptyState({
   icon: Icon,
   title,

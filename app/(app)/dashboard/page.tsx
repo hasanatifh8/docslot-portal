@@ -46,10 +46,10 @@ export default async function DashboardPage() {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat icon={CalendarClock} label="Booked" value={count("booked")} tone="text-brand-600" />
-        <Stat icon={CheckCircle2} label="Completed" value={count("completed")} tone="text-emerald-600" />
-        <Stat icon={UserX} label="No-shows" value={count("no_show")} tone="text-amber-600" />
-        <Stat icon={CalendarX2} label="Cancelled" value={count("cancelled")} tone="text-red-500" />
+        <Stat icon={CalendarClock} label="Booked" value={count("booked")} tone="brand" />
+        <Stat icon={CheckCircle2} label="Completed" value={count("completed")} tone="emerald" />
+        <Stat icon={UserX} label="No-shows" value={count("no_show")} tone="amber" />
+        <Stat icon={CalendarX2} label="Cancelled" value={count("cancelled")} tone="red" />
       </div>
 
       <Card>
@@ -98,6 +98,13 @@ export default async function DashboardPage() {
   );
 }
 
+const statTones = {
+  brand: { icon: "text-brand-600", chip: "bg-brand-50" },
+  emerald: { icon: "text-emerald-600", chip: "bg-emerald-50" },
+  amber: { icon: "text-amber-600", chip: "bg-amber-50" },
+  red: { icon: "text-red-500", chip: "bg-red-50" },
+} as const;
+
 function Stat({
   icon: Icon,
   label,
@@ -107,13 +114,15 @@ function Stat({
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number;
-  tone: string;
+  tone: keyof typeof statTones;
 }) {
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-slate-500">{label}</span>
-        <Icon className={`h-4 w-4 ${tone}`} />
+        <div className={`flex h-8 w-8 items-center justify-center rounded-full ${statTones[tone].chip}`}>
+          <Icon className={`h-4 w-4 ${statTones[tone].icon}`} />
+        </div>
       </div>
       <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{value}</div>
     </Card>

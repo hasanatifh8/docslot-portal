@@ -99,7 +99,7 @@ export default async function DoctorsPage() {
                           type="checkbox"
                           name={`on-${wd}`}
                           defaultChecked={!!w}
-                          className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                          className="h-4 w-4 rounded border-slate-300 accent-brand-600 focus:ring-2 focus:ring-brand-500 focus:ring-offset-1"
                         />
                         {label}
                       </label>
