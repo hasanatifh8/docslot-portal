@@ -93,8 +93,8 @@ export default async function DoctorsPage() {
                 {WEEKDAYS.map((label, wd) => {
                   const w = byDay.get(wd);
                   return (
-                    <div key={wd} className="flex items-center gap-3 text-sm">
-                      <label className="flex w-28 items-center gap-2 font-medium text-slate-700">
+                    <div key={wd} className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm sm:flex-nowrap">
+                      <label className="flex w-20 shrink-0 items-center gap-2 font-medium text-slate-700 sm:w-28">
                         <input
                           type="checkbox"
                           name={`on-${wd}`}
@@ -103,19 +103,21 @@ export default async function DoctorsPage() {
                         />
                         {label}
                       </label>
-                      <Input
-                        type="time"
-                        name={`start-${wd}`}
-                        defaultValue={w ? minToHHMM(w.startMin) : "09:00"}
-                        className="h-9 w-32"
-                      />
-                      <span className="text-slate-400">to</span>
-                      <Input
-                        type="time"
-                        name={`end-${wd}`}
-                        defaultValue={w ? minToHHMM(w.endMin) : "17:00"}
-                        className="h-9 w-32"
-                      />
+                      <div className="flex items-center gap-3">
+                        <Input
+                          type="time"
+                          name={`start-${wd}`}
+                          defaultValue={w ? minToHHMM(w.startMin) : "09:00"}
+                          className="h-9 w-28 sm:w-32"
+                        />
+                        <span className="text-slate-400">to</span>
+                        <Input
+                          type="time"
+                          name={`end-${wd}`}
+                          defaultValue={w ? minToHHMM(w.endMin) : "17:00"}
+                          className="h-9 w-28 sm:w-32"
+                        />
+                      </div>
                     </div>
                   );
                 })}

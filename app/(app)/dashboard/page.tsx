@@ -64,14 +64,14 @@ export default async function DashboardPage() {
             {appts.map((a) => {
               const past = a.endAt.getTime() < now;
               return (
-                <li key={a.id} className="flex items-center gap-4 px-5 py-3.5">
-                  <div className="w-16 shrink-0">
+                <li key={a.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5 sm:flex-nowrap sm:px-5">
+                  <div className="w-14 shrink-0">
                     <div className={`text-sm font-semibold ${past ? "text-slate-400" : "text-slate-900"}`}>
                       {fmt(a.startAt, tz, "h:mm")}
                     </div>
                     <div className="text-[11px] uppercase text-slate-400">{fmt(a.startAt, tz, "a")}</div>
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 basis-32">
                     <div className="truncate text-sm font-medium text-slate-900">
                       {a.patient.name || a.patient.waPhone}
                     </div>
@@ -80,14 +80,16 @@ export default async function DashboardPage() {
                       {a.source === "frontdesk" && " · front desk"}
                     </div>
                   </div>
-                  <Badge tone={statusTone(a.status)}>{a.status.replace("_", " ")}</Badge>
-                  {a.status === "booked" && (
-                    <div className="flex gap-1.5">
-                      <StatusButton id={a.id} status="completed" label="Done" />
-                      <StatusButton id={a.id} status="no_show" label="No-show" />
-                      <StatusButton id={a.id} status="cancelled" label="Cancel" />
-                    </div>
-                  )}
+                  <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
+                    <Badge tone={statusTone(a.status)}>{a.status.replace("_", " ")}</Badge>
+                    {a.status === "booked" && (
+                      <div className="flex gap-1.5">
+                        <StatusButton id={a.id} status="completed" label="Done" />
+                        <StatusButton id={a.id} status="no_show" label="No-show" />
+                        <StatusButton id={a.id} status="cancelled" label="Cancel" />
+                      </div>
+                    )}
+                  </div>
                 </li>
               );
             })}
