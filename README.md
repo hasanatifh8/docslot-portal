@@ -4,8 +4,8 @@ WhatsApp appointment booking for clinics — the self-serve trial portal.
 A clinic signs up, configures its doctors and hours, and gets a WhatsApp
 booking link. Patients book, reschedule, and get reminders entirely in chat.
 
-Built with Next.js (App Router) + Prisma. Local dev uses SQLite (zero setup);
-production uses Postgres.
+Built with Next.js (App Router) + Prisma, on Postgres (Neon free tier works
+for both local dev and production).
 
 ---
 
@@ -13,8 +13,8 @@ production uses Postgres.
 
 ```bash
 npm install
-cp .env.example .env          # defaults work for local dev
-npm run db:push               # create the SQLite schema
+cp .env.example .env          # then paste your Neon DATABASE_URL in
+npm run db:push               # create the schema
 npm run db:seed                # demo clinic — login demo@docslot.test / demo1234
 npm run dev                    # http://localhost:3000
 ```
@@ -81,19 +81,26 @@ the webhook flow locally.
 
 ---
 
-## Deploying
+## Deploying (free stack: Vercel + Neon + cron-job.org)
 
-1. Provision Postgres (Neon / Supabase / RDS).
-2. In `prisma/schema.prisma` change `datasource db { provider = "postgresql" }`.
-3. Set `DATABASE_URL` to the Postgres URL, plus all the `WHATSAPP_*` and
-   `APP_URL` / `SHARED_WHATSAPP_NUMBER` vars.
-4. `npx prisma migrate deploy` (or `prisma db push` for the first cut).
-5. Host the web app anywhere that runs Next.js (Railway, Render, Fly, a VPS).
-6. Schedule the reminder worker every ~5 min:
-   ```
-   */5 * * * *  cd /app && npm run reminders
-   ```
-   (Railway cron, Render cron job, or a system crontab.)
+1. **Database — [Neon](https://neon.tech) free tier:** create a project, copy
+   its pooled connection string into `DATABASE_URL`.
+2. **Host — [Vercel](https://vercel.com) free (Hobby) tier:** import this
+   GitHub repo, set env vars (`DATABASE_URL`, `APP_URL` = your `*.vercel.app`
+   URL, `CRON_SECRET`, and `WHATSAPP_*` / `SHARED_WHATSAPP_NUMBER` once you
+   have them), deploy.
+3. Apply the schema to the live database once:
+   `DATABASE_URL=<neon url> npx prisma db push`
+4. **Reminders — external cron (Vercel Hobby cron only runs once/day, too
+   coarse for reminders):** point a free scheduler like
+   [cron-job.org](https://cron-job.org) at
+   `https://YOUR_APP.vercel.app/api/cron/reminders?secret=<CRON_SECRET>`
+   every 5 minutes. (`CRON_SECRET` — generate with `openssl rand -hex 32`.)
+5. WhatsApp webhook (once you connect Meta, see above): callback URL is
+   `https://YOUR_APP.vercel.app/api/whatsapp/webhook`.
+
+Any other Node.js host works too (Railway, Render, Fly, a VPS) — in that
+case you can run `npm run reminders` on a real crontab instead of step 4.
 
 ---
 

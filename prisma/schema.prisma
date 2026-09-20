@@ -1,13 +1,14 @@
 // DocSlot portal — data model
-// Local dev uses SQLite (zero setup). For production switch `provider` to
-// "postgresql" and point DATABASE_URL at Neon/Supabase/RDS, then re-run migrate.
+// Deployed on Postgres (Neon free tier). For local dev without a Postgres
+// instance, point DATABASE_URL at the same free Neon database, or switch
+// `provider` back to "sqlite" temporarily.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
