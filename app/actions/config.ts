@@ -3,26 +3,68 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 
 // ─── Doctors ───────────────────────────────────────────────────────────────
+
+const optText = z
+  .string()
+  .optional()
+  .transform((s) => s?.trim() || null);
 
 const doctorSchema = z.object({
   name: z.string().min(2),
   specialty: z.string().min(2),
+  departmentId: optText,
+  qualification: optText,
+  registrationNo: optText,
   slotMinutes: z.coerce.number().int().min(5).max(240),
   bufferMinutes: z.coerce.number().int().min(0).max(120),
 });
 
 export async function addDoctor(formData: FormData) {
-  const user = await requireUser();
+  const user = await requirePermission("doctors.manage", { throwOnDeny: true });
   const d = doctorSchema.parse(Object.fromEntries(formData));
+  if (d.departmentId && !(await prisma.department.findFirst({ where: { id: d.departmentId, clinicId: user.clinicId } }))) {
+    d.departmentId = null;
+  }
   await prisma.doctor.create({ data: { ...d, clinicId: user.clinicId } });
   revalidatePath("/doctors");
 }
 
+export async function setDoctorDepartment(formData: FormData) {
+  const user = await requirePermission("doctors.manage", { throwOnDeny: true });
+  const id = String(formData.get("id"));
+  const departmentId = String(formData.get("departmentId") || "") || null;
+  if (departmentId && !(await prisma.department.findFirst({ where: { id: departmentId, clinicId: user.clinicId } }))) {
+    return;
+  }
+  await prisma.doctor.updateMany({ where: { id, clinicId: user.clinicId }, data: { departmentId } });
+  revalidatePath("/doctors");
+}
+
+// ─── Departments ───────────────────────────────────────────────────────────
+
+export async function addDepartment(formData: FormData) {
+  const user = await requirePermission("doctors.manage", { throwOnDeny: true });
+  const name = String(formData.get("name") || "").trim();
+  if (name.length < 2) return;
+  await prisma.department.upsert({
+    where: { clinicId_name: { clinicId: user.clinicId, name } },
+    create: { clinicId: user.clinicId, name },
+    update: {},
+  });
+  revalidatePath("/doctors");
+}
+
+export async function deleteDepartment(formData: FormData) {
+  const user = await requirePermission("doctors.manage", { throwOnDeny: true });
+  await prisma.department.deleteMany({ where: { id: String(formData.get("id")), clinicId: user.clinicId } });
+  revalidatePath("/doctors");
+}
+
 export async function toggleDoctor(formData: FormData) {
-  const user = await requireUser();
+  const user = await requirePermission("doctors.manage", { throwOnDeny: true });
   const id = String(formData.get("id"));
   const doctor = await prisma.doctor.findFirst({ where: { id, clinicId: user.clinicId } });
   if (!doctor) return;
@@ -31,7 +73,7 @@ export async function toggleDoctor(formData: FormData) {
 }
 
 export async function deleteDoctor(formData: FormData) {
-  const user = await requireUser();
+  const user = await requirePermission("doctors.manage", { throwOnDeny: true });
   const id = String(formData.get("id"));
   await prisma.doctor.deleteMany({ where: { id, clinicId: user.clinicId } });
   revalidatePath("/doctors");
@@ -46,7 +88,7 @@ const toMin = (s: string) => {
 };
 
 export async function setWorkingHours(formData: FormData) {
-  const user = await requireUser();
+  const user = await requirePermission("doctors.manage", { throwOnDeny: true });
   const doctorId = String(formData.get("doctorId"));
   const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId: user.clinicId } });
   if (!doctor) return;
@@ -82,7 +124,7 @@ const clinicSchema = z.object({
 });
 
 export async function updateClinic(formData: FormData) {
-  const user = await requireUser();
+  const user = await requirePermission("settings.manage", { throwOnDeny: true });
   const raw = Object.fromEntries(formData);
   const d = clinicSchema.parse(raw);
   await prisma.clinic.update({
@@ -100,7 +142,7 @@ export async function updateClinic(formData: FormData) {
 }
 
 export async function connectOwnNumber(formData: FormData) {
-  const user = await requireUser();
+  const user = await requirePermission("settings.manage", { throwOnDeny: true });
   const phoneNumberId = String(formData.get("phoneNumberId") || "").trim();
   const token = String(formData.get("token") || "").trim();
   await prisma.clinic.update({
@@ -116,7 +158,7 @@ export async function connectOwnNumber(formData: FormData) {
 // ─── Holidays ──────────────────────────────────────────────────────────────
 
 export async function addHoliday(formData: FormData) {
-  const user = await requireUser();
+  const user = await requirePermission("settings.manage", { throwOnDeny: true });
   const date = String(formData.get("date") || "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
   await prisma.holiday.create({
@@ -130,7 +172,7 @@ export async function addHoliday(formData: FormData) {
 }
 
 export async function deleteHoliday(formData: FormData) {
-  const user = await requireUser();
+  const user = await requirePermission("settings.manage", { throwOnDeny: true });
   await prisma.holiday.deleteMany({
     where: { id: String(formData.get("id")), clinicId: user.clinicId },
   });

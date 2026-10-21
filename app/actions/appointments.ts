@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
+import { ensureUhid } from "@/lib/patients";
 import { fromZonedTime } from "date-fns-tz";
 
 export async function setAppointmentStatus(formData: FormData) {
-  const user = await requireUser();
+  const user = await requirePermission("appointments.manage", { throwOnDeny: true });
   const id = String(formData.get("id"));
   const status = String(formData.get("status"));
   if (!["booked", "cancelled", "completed", "no_show"].includes(status)) return;
@@ -20,6 +21,7 @@ export async function setAppointmentStatus(formData: FormData) {
   }
   revalidatePath("/appointments");
   revalidatePath("/dashboard");
+  revalidatePath("/opd");
 }
 
 export type BookState = { error?: string; ok?: boolean };
@@ -27,7 +29,7 @@ export type BookState = { error?: string; ok?: boolean };
 // Front-desk manual booking. Returns a form state instead of throwing so the
 // UI can show a friendly message (used with useActionState).
 export async function frontdeskBook(_prev: BookState, formData: FormData): Promise<BookState> {
-  const user = await requireUser();
+  const user = await requirePermission("appointments.manage", { throwOnDeny: true });
   const clinic = await prisma.clinic.findUnique({ where: { id: user.clinicId } });
   if (!clinic) return { error: "Clinic not found." };
 
@@ -63,6 +65,7 @@ export async function frontdeskBook(_prev: BookState, formData: FormData): Promi
     create: { clinicId: clinic.id, waPhone, name: patientName || null },
     update: { name: patientName || undefined },
   });
+  await ensureUhid(patient);
 
   const appt = await prisma.appointment.create({
     data: {

@@ -1,8 +1,33 @@
-# DocSlot Portal
+# DocSlot HMS
 
-WhatsApp appointment booking for clinics — the self-serve trial portal.
-A clinic signs up, configures its doctors and hours, and gets a WhatsApp
-booking link. Patients book, reschedule, and get reminders entirely in chat.
+Hospital management for small and mid-size hospitals: patient registration
+(UHID), OPD queue with tokens, vitals, consultation notes and printable
+prescriptions, departments, role-based staff logins — plus the original
+WhatsApp booking bot, so patients can still book, reschedule and get reminders
+entirely in chat.
+
+### Roles
+
+| Role | Can do |
+|---|---|
+| Administrator | Everything, incl. doctors & departments, staff, settings |
+| Receptionist | Register/edit patients, book appointments, OPD check-in |
+| Junior doctor | Triage: capture vitals and hand off to the senior doctor |
+| Nurse | Register/edit patients, OPD check-in, triage |
+| Senior doctor | Consult, prescribe and finalize (own patients only) |
+
+### OPD pipeline
+
+`CHECKED_IN → TRIAGE_IN_PROGRESS → TRIAGE_COMPLETED → IN_CONSULTATION → COMPLETED`
+(or `CANCELLED` from any open state). Defined once in `lib/encounter.ts`;
+every status change goes through `transition()` in `app/actions/opd.ts`,
+which checks role + current state and does a compare-and-set update so two
+people can't claim the same patient. Completing renders the prescription PDF
+(`lib/prescription-pdf.ts`), stores it on the visit, and serves it from
+`/api/visits/[id]/prescription`. Queue and visit screens auto-refresh every 10s.
+
+Permissions live in `lib/rbac.ts`; pages call `requirePermission()` and
+actions call it with `{ throwOnDeny: true }`.
 
 Built with Next.js (App Router) + Prisma, on Postgres (Neon free tier works
 for both local dev and production).
@@ -15,11 +40,19 @@ for both local dev and production).
 npm install
 cp .env.example .env          # then paste your Neon DATABASE_URL in
 npm run db:push               # create the schema
-npm run db:seed                # demo clinic — login demo@docslot.test / demo1234
+npm run db:seed                # demo hospital — logins below, password demo1234
 npm run dev                    # http://localhost:3000
 ```
 
 Portal: <http://localhost:3000>  ·  Prisma Studio: `npm run db:studio`
+
+Demo logins (password `demo1234`): `demo@docslot.test` (admin),
+`reception@docslot.test`, `nurse@docslot.test`, `jr.rao@docslot.test`,
+`dr.mehra@docslot.test`.
+
+**Upgrading an existing DocSlot database:** `npm run db:push` (additive —
+existing users become admins), then `npx tsx scripts/backfill-uhid.ts` to give
+existing patients a UHID.
 
 Without WhatsApp credentials the app runs fine — outbound messages are
 logged to the console instead of sent, so you can exercise the portal and
@@ -31,7 +64,10 @@ the webhook flow locally.
 
 | Piece | Where | Notes |
 |---|---|---|
-| Portal (auth, config, dashboard) | `app/(app)/*`, `app/login`, `app/signup` | session cookie auth, `lib/auth.ts` |
+| Portal (auth, config, dashboard) | `app/(app)/*`, `app/login`, `app/signup` | session cookie auth, `lib/auth.ts`, roles in `lib/rbac.ts` |
+| Patients | `app/(app)/patients/*`, `app/actions/patients.ts` | UHID sequence in `lib/patients.ts` |
+| OPD | `app/(app)/opd/*`, `app/actions/opd.ts`, `lib/encounter.ts` | state machine; PDF at `/api/visits/[id]/prescription` |
+| Staff | `app/(app)/staff`, `app/actions/staff.ts` | admin-only user management |
 | Booking conversation | `lib/conversation.ts` | explicit state machine, one `Conversation` row per patient phone |
 | WhatsApp webhook | `app/api/whatsapp/webhook/route.ts` | GET = Meta verify, POST = inbound messages |
 | WhatsApp API client | `lib/whatsapp.ts` | Cloud API (text / list / buttons / template) |

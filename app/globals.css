@@ -1,12 +1,28 @@
 @import "tailwindcss";
 
+/* Clinical teal, matched to the DocSlot logo. Every component uses brand-*,
+   so the whole app re-themes from here. */
 @theme {
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-200: #c7d2fe;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
+  --color-brand-50: #effcf9;
+  --color-brand-100: #d2f5ee;
+  --color-brand-200: #a5eadd;
+  --color-brand-300: #6dd8c8;
+  --color-brand-400: #34bdac;
+  --color-brand-500: #14a191;
+  --color-brand-600: #0c8276;
+  --color-brand-700: #0e6860;
+  --color-brand-800: #10544f;
+  --color-brand-900: #0f3f3c;
+
+  /* Logo orange — used sparingly for highlights */
+  --color-accent-50: #fff4ec;
+  --color-accent-100: #ffe4d1;
+  --color-accent-500: #f47c30;
+  --color-accent-600: #e0661b;
+
+  /* Soft mint-white app canvas */
+  --color-canvas: #f2f7f7;
+
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Arial, sans-serif;
 }
@@ -25,18 +41,60 @@
   }
 }
 
-/* thin, unobtrusive scrollbars for the app shell */
 @layer utilities {
+  /* thin, unobtrusive scrollbars for the app shell */
   .scrollbar-slim {
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-color: #c3d6d4 transparent;
   }
   .scrollbar-slim::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
   .scrollbar-slim::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: #c3d6d4;
     border-radius: 9999px;
+  }
+
+  /* Faint repeating medical-cross pattern for hero panels. Drawn on a
+     pseudo-layer (not background-image) so it stacks on top of bg-gradient-*
+     instead of replacing it; isolation keeps it beneath the content. */
+  .bg-crosses {
+    position: relative;
+    isolation: isolate;
+  }
+  .bg-crosses::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cpath d='M24 18h8v6h6v8h-6v6h-8v-6h-6v-8h6z' fill='%23ffffff' fill-opacity='0.07'/%3E%3C/svg%3E");
+  }
+
+  /* Soft tinted card shadow */
+  .shadow-care {
+    box-shadow:
+      0 1px 2px rgb(15 63 60 / 0.04),
+      0 4px 16px -4px rgb(15 63 60 / 0.08);
+  }
+}
+
+@keyframes ecg-draw {
+  from {
+    stroke-dashoffset: 600;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.ecg-line {
+  stroke-dasharray: 600;
+  animation: ecg-draw 2.4s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ecg-line {
+    animation: none;
+    stroke-dasharray: none;
   }
 }

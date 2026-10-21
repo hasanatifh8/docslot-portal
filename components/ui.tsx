@@ -13,9 +13,9 @@ const base =
   "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-brand-700 shadow-sm",
-  secondary: "bg-white text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50",
-  ghost: "text-slate-600 hover:bg-slate-100",
+  primary: "bg-brand-600 text-white hover:bg-brand-700 shadow-sm shadow-brand-900/10",
+  secondary: "bg-white text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-brand-50 hover:text-brand-800 hover:ring-brand-200",
+  ghost: "text-slate-600 hover:bg-brand-50 hover:text-brand-700",
   danger: "bg-white text-red-600 ring-1 ring-inset ring-red-200 hover:bg-red-50",
 };
 
@@ -43,7 +43,7 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
   return (
     <div
       className={cn(
-        "rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70",
+        "shadow-care rounded-2xl bg-white ring-1 ring-brand-900/[0.06]",
         className
       )}
       {...props}
@@ -55,8 +55,18 @@ export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDiv
   return <div className={cn("border-b border-slate-100 px-5 py-4", className)} {...props} />;
 }
 
-export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cn("text-sm font-semibold text-slate-900", className)} {...props} />;
+export function CardTitle({
+  className,
+  icon: Icon,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLHeadingElement> & { icon?: IconType }) {
+  return (
+    <h3 className={cn("flex items-center gap-2 text-sm font-semibold text-slate-900", className)} {...props}>
+      {Icon && <Icon className="h-4 w-4 text-brand-600" />}
+      {children}
+    </h3>
+  );
 }
 
 export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
@@ -87,17 +97,22 @@ export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLS
 export function Field({
   label,
   hint,
+  icon: Icon,
   children,
   className,
 }: {
   label: string;
   hint?: string;
+  icon?: IconType;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <label className={cn("block", className)}>
-      <span className="mb-1.5 block text-xs font-medium text-slate-700">{label}</span>
+      <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-700">
+        {Icon && <Icon className="h-3.5 w-3.5 text-brand-500" />}
+        {label}
+      </span>
       {children}
       {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
     </label>
@@ -138,44 +153,148 @@ export function Badge({
 
 export function statusTone(status: string): keyof typeof badgeTones {
   return (
-    { booked: "green", cancelled: "red", completed: "slate", no_show: "amber" } as const
+    {
+      booked: "green",
+      cancelled: "red",
+      completed: "slate",
+      no_show: "amber",
+    } as const
   )[status] ?? "slate";
 }
 
+// ─── Form feedback ─────────────────────────────────────────────────────────
+
+export function FormMessage({
+  error,
+  success,
+  className,
+}: {
+  error?: string;
+  success?: string | false;
+  className?: string;
+}) {
+  if (error) {
+    return (
+      <p className={cn("rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-inset ring-red-600/10", className)}>
+        {error}
+      </p>
+    );
+  }
+  if (success) {
+    return (
+      <p
+        className={cn(
+          "rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 ring-1 ring-inset ring-emerald-600/10",
+          className
+        )}
+      >
+        {success}
+      </p>
+    );
+  }
+  return null;
+}
+
 // ─── Layout helpers ────────────────────────────────────────────────────────
+
+export type IconType = React.ComponentType<{ className?: string }>;
 
 export function PageHeader({
   title,
   description,
   actions,
+  icon: Icon,
 }: {
   title: string;
   description?: string;
   actions?: React.ReactNode;
+  icon?: IconType;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
-        {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        {Icon && (
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-md shadow-brand-700/20">
+            <Icon className="h-5 w-5" />
+          </div>
+        )}
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
+          {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
+        </div>
       </div>
       {actions}
     </div>
   );
 }
 
-export function AuthShell({ children }: { children: React.ReactNode }) {
+/** Rounded tinted icon tile. */
+export function IconChip({
+  icon: Icon,
+  tone = "brand",
+  className,
+}: {
+  icon: IconType;
+  tone?: "brand" | "rose" | "amber" | "sky" | "emerald" | "violet" | "slate" | "accent";
+  className?: string;
+}) {
+  const tones = {
+    brand: "bg-brand-50 text-brand-600",
+    rose: "bg-rose-50 text-rose-500",
+    amber: "bg-amber-50 text-amber-600",
+    sky: "bg-sky-50 text-sky-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    violet: "bg-violet-50 text-violet-600",
+    slate: "bg-slate-100 text-slate-500",
+    accent: "bg-accent-50 text-accent-600",
+  };
   return (
-    <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-gradient-to-b from-slate-100 to-slate-200 p-6">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-brand-500/40 blur-2xl"
+    <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", tones[tone], className)}>
+      <Icon className="h-[18px] w-[18px]" />
+    </div>
+  );
+}
+
+/** Heartbeat trace — the app's signature motif. */
+export function EcgLine({ className, animated = false }: { className?: string; animated?: boolean }) {
+  return (
+    <svg viewBox="0 0 300 40" fill="none" preserveAspectRatio="none" aria-hidden className={className}>
+      <path
+        className={animated ? "ecg-line" : undefined}
+        d="M0 22h70l8-10 8 10h20l6 8 8-28 10 38 7-18h14l10-6 10 6h129"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
       />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-32 -right-20 h-[28rem] w-[28rem] rounded-full bg-brand-600/30 blur-2xl"
-      />
-      <div className="relative w-full max-w-sm">{children}</div>
+    </svg>
+  );
+}
+
+export function AuthShell({ children, hero }: { children: React.ReactNode; hero?: React.ReactNode }) {
+  return (
+    <div className="flex flex-1">
+      {hero && (
+        <aside className="bg-crosses relative hidden w-[46%] max-w-xl flex-col justify-between overflow-hidden bg-brand-800 bg-gradient-to-br from-brand-700 via-brand-800 to-brand-900 p-10 text-white lg:flex">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-32 -right-24 h-80 w-80 rounded-full bg-brand-400/25 blur-3xl"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-accent-500/20 blur-3xl"
+          />
+          {hero}
+        </aside>
+      )}
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-canvas p-6">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-40 right-0 h-96 w-96 rounded-full bg-brand-200/40 blur-3xl"
+        />
+        <div className="relative w-full max-w-sm">{children}</div>
+      </div>
     </div>
   );
 }
@@ -192,7 +311,7 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
       {Icon && (
-        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-500 ring-8 ring-brand-50/40">
           <Icon className="h-5 w-5" />
         </div>
       )}

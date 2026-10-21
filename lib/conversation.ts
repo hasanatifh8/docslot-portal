@@ -15,6 +15,7 @@ import {
   minToHHMM,
 } from "@/lib/slots";
 import { formatInTimeZone } from "date-fns-tz";
+import { ensureUhid } from "@/lib/patients";
 
 // The booking flow is a small explicit state machine. State lives in the
 // Conversation row (step + draft JSON). Each inbound message advances it.
@@ -346,6 +347,7 @@ async function finalizeBooking(
     create: { clinicId: clinic.id, waPhone: from, name: draft.patientName ?? contactName ?? null },
     update: { name: draft.patientName ?? undefined },
   });
+  await ensureUhid(patient);
 
   if (draft.rescheduleOf) {
     await prisma.appointment.updateMany({

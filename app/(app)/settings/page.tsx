@@ -1,6 +1,6 @@
-import { Trash2 } from "lucide-react";
+import { CalendarHeart, CalendarOff, Hospital, MessageCircle, Settings, Trash2 } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { fmt } from "@/lib/format";
 import {
   updateClinic,
@@ -23,7 +23,7 @@ import {
 import { CopyField } from "@/components/copy-field";
 
 export default async function SettingsPage() {
-  const user = await requireUser();
+  const user = await requirePermission("settings.manage");
   const clinic = (await prisma.clinic.findUnique({
     where: { id: user.clinicId },
     include: { holidays: { orderBy: { date: "asc" } } },
@@ -36,14 +36,14 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Settings" description="Clinic details, booking link, and WhatsApp" />
+      <PageHeader icon={Settings} title="Settings" description="Hospital details, booking link, and WhatsApp" />
 
       <Card>
         <CardHeader>
-          <CardTitle>Your booking link</CardTitle>
+          <CardTitle icon={CalendarHeart}>Your booking link</CardTitle>
           <CardDescription>
             Share with patients, or open it yourself during a demo. It launches WhatsApp with your
-            clinic code <code className="rounded bg-slate-100 px-1 py-0.5">{clinic.code}</code> pre-filled.
+            hospital code <code className="rounded bg-slate-100 px-1 py-0.5">{clinic.code}</code> pre-filled.
           </CardDescription>
         </CardHeader>
         <CardBody>
@@ -59,12 +59,12 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Clinic details</CardTitle>
-          <CardDescription>Address and prep notes are sent to the patient right after booking.</CardDescription>
+          <CardTitle icon={Hospital}>Hospital details</CardTitle>
+          <CardDescription>Address and prep notes are sent to the patient right after booking, and printed on prescriptions.</CardDescription>
         </CardHeader>
         <CardBody>
           <form action={updateClinic} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Clinic name">
+            <Field label="Hospital name">
               <Input name="name" defaultValue={clinic.name} required />
             </Field>
             <Field label="Timezone" hint="IANA name, e.g. Asia/Kolkata">
@@ -96,7 +96,7 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Closed days</CardTitle>
+          <CardTitle icon={CalendarOff}>Closed days</CardTitle>
           <CardDescription>Full-day closures — no slots are offered on these dates.</CardDescription>
         </CardHeader>
         <CardBody className="space-y-4">
@@ -134,7 +134,7 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Connect your own WhatsApp number</CardTitle>
+          <CardTitle icon={MessageCircle}>Connect your own WhatsApp number</CardTitle>
           <CardDescription>
             Optional. Leave blank to keep using the shared demo number. Once your own WhatsApp
             Business number is live on the Cloud API, paste its phone number ID and a permanent

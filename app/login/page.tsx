@@ -1,37 +1,39 @@
 "use client";
 
 import { useActionState } from "react";
+import { Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { loginAction, type FormState } from "@/app/actions/auth";
 import { AuthShell, Button, Field, Input } from "@/components/ui";
 import { Logo } from "@/components/brand";
+import { AuthHero } from "@/components/auth-hero";
 
 export default function LoginPage() {
   const [state, action, pending] = useActionState<FormState, FormData>(loginAction, {});
 
   return (
-    <AuthShell>
+    <AuthShell hero={<AuthHero />}>
       <div className="mb-6 flex flex-col items-center gap-3 text-center">
-        <Logo />
+        <Logo className="h-8" />
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Welcome back</h1>
-          <p className="text-sm text-slate-500">Sign in to your clinic dashboard</p>
+          <p className="text-sm text-slate-500">Sign in to your hospital dashboard</p>
         </div>
       </div>
 
       <form
         action={action}
-        className="space-y-4 rounded-2xl bg-white p-7 shadow-sm ring-1 ring-slate-200/70"
+        className="shadow-care space-y-4 rounded-2xl bg-white p-7 ring-1 ring-brand-900/[0.06]"
       >
         {state.error && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-inset ring-red-600/10">
             {state.error}
           </p>
         )}
-        <Field label="Email">
+        <Field label="Email" icon={Mail}>
           <Input name="email" type="email" autoComplete="email" required placeholder="you@clinic.com" />
         </Field>
-        <Field label="Password">
+        <Field label="Password" icon={Lock}>
           <Input name="password" type="password" autoComplete="current-password" required placeholder="••••••••" />
         </Field>
         <Button type="submit" disabled={pending} className="w-full">
@@ -40,9 +42,9 @@ export default function LoginPage() {
       </form>
 
       <p className="mt-5 text-center text-sm text-slate-500">
-        New clinic?{" "}
+        New hospital or clinic?{" "}
         <Link href="/signup" className="font-medium text-brand-600 hover:text-brand-700">
-          Start a free trial
+          Register your hospital
         </Link>
       </p>
     </AuthShell>

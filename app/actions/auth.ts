@@ -14,7 +14,7 @@ const slug = (s: string) =>
   s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24);
 
 const signupSchema = z.object({
-  clinicName: z.string().min(2, "Clinic name is too short"),
+  clinicName: z.string().min(2, "Hospital name is too short"),
   name: z.string().min(2, "Your name is too short"),
   email: z.string().email("Enter a valid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -43,6 +43,7 @@ export async function signupAction(_prev: FormState, formData: FormData): Promis
         clinicId: clinic.id,
         email: email.toLowerCase(),
         name,
+        role: "admin",
         passwordHash: await hashPassword(password),
       },
     });
@@ -65,6 +66,7 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
     return { error: "Wrong email or password." };
   }
+  if (!user.active) return { error: "This account has been deactivated. Contact your administrator." };
   await createSession(user.id);
   redirect("/dashboard");
 }

@@ -1,21 +1,27 @@
-import { ClipboardList } from "lucide-react";
+import { CalendarHeart, ClipboardList } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
-import { fmt } from "@/lib/format";
+import Link from "next/link";
+import { requirePermission } from "@/lib/auth";
+import { can } from "@/lib/rbac";
+import { dayRange, fmt } from "@/lib/format";
 import { setAppointmentStatus } from "@/app/actions/appointments";
+import { checkInAppointment } from "@/app/actions/opd";
 import { Badge, Button, Card, EmptyState, PageHeader, statusTone } from "@/components/ui";
 import { FrontdeskForm } from "@/components/frontdesk-form";
 
 export default async function AppointmentsPage() {
-  const user = await requireUser();
+  const user = await requirePermission("appointments.view");
   const tz = user.clinic.timezone;
+  const canManage = can(user.role, "appointments.manage");
+  const canCheckIn = can(user.role, "opd.checkin");
+  const today = dayRange(tz);
 
   const [appts, doctors] = await Promise.all([
     prisma.appointment.findMany({
       where: { clinicId: user.clinicId },
       orderBy: { startAt: "desc" },
       take: 100,
-      include: { doctor: true, patient: true },
+      include: { doctor: true, patient: true, visit: { select: { id: true, token: true } } },
     }),
     prisma.doctor.findMany({
       where: { clinicId: user.clinicId, active: true },
@@ -25,9 +31,11 @@ export default async function AppointmentsPage() {
 
   return (
     <div>
-      <PageHeader title="Appointments" description="Every booking, newest first" />
+      <PageHeader icon={CalendarHeart} title="Appointments" description="Every booking, newest first" />
 
-      <FrontdeskForm doctors={doctors.map((d) => ({ id: d.id, name: d.name, specialty: d.specialty }))} />
+      {canManage && (
+        <FrontdeskForm doctors={doctors.map((d) => ({ id: d.id, name: d.name, specialty: d.specialty }))} />
+      )}
 
       <Card>
         {appts.length === 0 ? (
@@ -41,16 +49,34 @@ export default async function AppointmentsPage() {
                   <div className="text-xs text-slate-400">{fmt(a.startAt, tz, "EEEE")}</div>
                 </div>
                 <div className="min-w-0 flex-1 basis-40">
-                  <div className="truncate text-sm font-medium text-slate-900">
+                  <Link
+                    href={`/patients/${a.patient.id}`}
+                    className="block truncate text-sm font-medium text-slate-900 hover:text-brand-700"
+                  >
                     {a.patient.name || a.patient.waPhone}
-                  </div>
+                  </Link>
                   <div className="truncate text-xs text-slate-500">
                     {a.doctor.name} · {a.doctor.specialty} · {a.patient.waPhone}
                   </div>
                 </div>
                 <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
                   <Badge tone={statusTone(a.status)}>{a.status.replace("_", " ")}</Badge>
-                  {a.status === "booked" && (
+                  {a.visit ? (
+                    <Link href={`/opd/${a.visit.id}`} className="text-xs font-medium text-brand-600 hover:text-brand-700">
+                      Token #{a.visit.token} →
+                    </Link>
+                  ) : (
+                    canCheckIn &&
+                    a.status === "booked" &&
+                    a.startAt >= today.start &&
+                    a.startAt < today.end && (
+                      <form action={checkInAppointment}>
+                        <input type="hidden" name="appointmentId" value={a.id} />
+                        <Button size="sm">Check in</Button>
+                      </form>
+                    )
+                  )}
+                  {canManage && a.status === "booked" && !a.visit && (
                     <form action={setAppointmentStatus}>
                       <input type="hidden" name="id" value={a.id} />
                       <input type="hidden" name="status" value="cancelled" />

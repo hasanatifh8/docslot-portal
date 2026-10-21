@@ -14,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .toUpperCase();
 
   return (
-    <AppShell clinicName={user.clinic.name} userName={user.name} userEmail={user.email} initials={initials}>
+    <AppShell clinicName={user.clinic.name} userName={user.name} role={user.role} initials={initials}>
       {children}
     </AppShell>
   );

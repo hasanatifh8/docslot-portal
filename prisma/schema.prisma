@@ -1,4 +1,6 @@
-// DocSlot portal — data model
+// DocSlot HMS — data model
+// Note: the tenant model is still called `Clinic` (table name kept so existing
+// data survives `db push`); the UI calls it a hospital.
 // Deployed on Postgres (Neon free tier). For local dev without a Postgres
 // instance, point DATABASE_URL at the same free Neon database, or switch
 // `provider` back to "sqlite" temporarily.
@@ -15,16 +17,16 @@ datasource db {
 // ─── Tenant ────────────────────────────────────────────────────────────────
 
 model Clinic {
-  id        String   @id @default(cuid())
-  name      String
+  id       String @id @default(cuid())
+  name     String
   // Short slug patients send as the first WhatsApp message so the shared demo
   // number knows which clinic they want, e.g. wa.me/<num>?text=sunrise
-  code      String   @unique
-  timezone  String   @default("Asia/Kolkata")
+  code     String @unique
+  timezone String @default("Asia/Kolkata")
 
   // Location + prep info sent right after a booking is confirmed
-  addressText  String?
-  mapsUrl      String?
+  addressText      String?
+  mapsUrl          String?
   prepInstructions String?
 
   // WhatsApp Cloud API — set once the clinic runs on its OWN number.
@@ -35,14 +37,19 @@ model Clinic {
   // Reminder offsets in minutes before the appointment
   reminderOffsets String @default("1440,120") // 24h, 2h
 
+  // Next patient UHID sequence number (see lib/patients.ts)
+  nextUhid Int @default(1)
+
   createdAt DateTime @default(now())
 
   users         User[]
+  departments   Department[]
   doctors       Doctor[]
   holidays      Holiday[]
   patients      Patient[]
   appointments  Appointment[]
   conversations Conversation[]
+  visits        Visit[]
 }
 
 // ─── Portal auth ───────────────────────────────────────────────────────────
@@ -54,9 +61,19 @@ model User {
   email        String   @unique
   passwordHash String
   name         String
+  // admin | doctor (senior) | junior_doctor | nurse | receptionist — see lib/rbac.ts
+  role         String   @default("admin")
+  // For role = doctor: the Doctor record this login belongs to
+  doctorId     String?  @unique
+  doctor       Doctor?  @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  active       Boolean  @default(true)
   createdAt    DateTime @default(now())
 
   sessions Session[]
+
+  visitsCheckedIn Visit[] @relation("VisitCheckedInBy")
+  visitsTriaged   Visit[] @relation("VisitTriageBy")
+  visitsConsulted Visit[] @relation("VisitConsultBy")
 }
 
 model Session {
@@ -69,32 +86,50 @@ model Session {
 
 // ─── Scheduling config ─────────────────────────────────────────────────────
 
+model Department {
+  id        String   @id @default(cuid())
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+
+  doctors Doctor[]
+
+  @@unique([clinicId, name])
+}
+
 model Doctor {
-  id            String  @id @default(cuid())
-  clinicId      String
-  clinic        Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  name          String
-  specialty     String
-  slotMinutes   Int     @default(15)
+  id             String      @id @default(cuid())
+  clinicId       String
+  clinic         Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  name           String
+  specialty      String
+  departmentId   String?
+  department     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  qualification  String?
+  registrationNo String?
+  slotMinutes    Int         @default(15)
   // Buffer between appointments, minutes
-  bufferMinutes Int     @default(0)
-  active        Boolean @default(true)
-  createdAt     DateTime @default(now())
+  bufferMinutes  Int         @default(0)
+  active         Boolean     @default(true)
+  createdAt      DateTime    @default(now())
 
   workingHours WorkingHour[]
   appointments Appointment[]
+  visits       Visit[]
+  user         User?
 }
 
 // One row per weekday window a doctor sees patients.
 model WorkingHour {
-  id        String @id @default(cuid())
-  doctorId  String
-  doctor    Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  doctorId String
+  doctor   Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   // 0 = Sunday … 6 = Saturday
-  weekday   Int
+  weekday  Int
   // Minutes from midnight, clinic-local. e.g. 540 = 09:00, 780 = 13:00
-  startMin  Int
-  endMin    Int
+  startMin Int
+  endMin   Int
 }
 
 // Full-day closures (clinic-wide).
@@ -109,43 +144,58 @@ model Holiday {
 // ─── Patients & bookings ───────────────────────────────────────────────────
 
 model Patient {
-  id        String   @id @default(cuid())
-  clinicId  String
-  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  waPhone   String   // E.164, digits only
-  name      String?
-  createdAt DateTime @default(now())
+  id                String    @id @default(cuid())
+  clinicId          String
+  clinic            Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  // Hospital-unique ID shown on cards and prescriptions, e.g. "UH000042".
+  // Nullable only so pre-HMS rows survive `db push`; assigned on first save.
+  uhid              String?
+  waPhone           String // E.164, digits only — also the patient's contact number
+  name              String?
+  gender            String? // male | female | other
+  dob               DateTime? // date only
+  bloodGroup        String?
+  email             String?
+  address           String?
+  emergencyName     String?
+  emergencyPhone    String?
+  allergies         String?
+  chronicConditions String?
+  createdAt         DateTime  @default(now())
 
   appointments Appointment[]
+  visits       Visit[]
 
   @@unique([clinicId, waPhone])
+  @@unique([clinicId, uhid])
 }
 
 model Appointment {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   clinicId  String
-  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic    Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   doctorId  String
-  doctor    Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  doctor    Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patientId String
-  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
-  startAt   DateTime
-  endAt     DateTime
-  status    String   @default("booked") // booked | cancelled | completed | no_show
-  source    String   @default("whatsapp") // whatsapp | frontdesk
-  note      String?
+  startAt DateTime
+  endAt   DateTime
+  status  String   @default("booked") // booked | cancelled | completed | no_show
+  source  String   @default("whatsapp") // whatsapp | frontdesk
+  note    String?
 
   createdAt DateTime @default(now())
 
   reminders Reminder[]
+  visit     Visit?
 
   @@index([clinicId, startAt])
   @@index([doctorId, startAt])
 }
 
 model Reminder {
-  id            String   @id @default(cuid())
+  id            String      @id @default(cuid())
   appointmentId String
   appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   sendAt        DateTime
@@ -155,18 +205,102 @@ model Reminder {
   @@index([sendAt, sentAt])
 }
 
+// ─── OPD ───────────────────────────────────────────────────────────────────
+
+// One outpatient encounter. Strict pipeline — see lib/encounter.ts:
+// CHECKED_IN → TRIAGE_IN_PROGRESS → TRIAGE_COMPLETED → IN_CONSULTATION → COMPLETED
+// (CANCELLED from any open state).
+enum VisitStatus {
+  CHECKED_IN
+  TRIAGE_IN_PROGRESS
+  TRIAGE_COMPLETED
+  IN_CONSULTATION
+  COMPLETED
+  CANCELLED
+}
+
+model Visit {
+  id            String       @id @default(cuid())
+  clinicId      String
+  clinic        Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId     String
+  patient       Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  // The senior doctor the patient is queued for
+  doctorId      String
+  doctor        Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  appointmentId String?      @unique
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  // Queue number per doctor per day
+  token  Int
+  status VisitStatus @default(CHECKED_IN)
+
+  checkedInById     String?
+  checkedInBy       User?     @relation("VisitCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+  checkedInAt       DateTime  @default(now())
+  triageById        String?
+  triageBy          User?     @relation("VisitTriageBy", fields: [triageById], references: [id], onDelete: SetNull)
+  triageStartedAt   DateTime?
+  triageCompletedAt DateTime?
+  consultById       String?
+  consultBy         User?     @relation("VisitConsultBy", fields: [consultById], references: [id], onDelete: SetNull)
+  consultStartedAt  DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+
+  // Finalized prescription, rendered once at completion and never regenerated
+  prescriptionPdf Bytes?
+  pdfGeneratedAt  DateTime?
+
+  // Vitals
+  heightCm     Float?
+  weightKg     Float?
+  temperatureC Float?
+  pulse        Int?
+  bpSystolic   Int?
+  bpDiastolic  Int?
+  spo2         Int?
+  respRate     Int?
+
+  // Consultation
+  chiefComplaint String?
+  history        String?
+  examination    String?
+  diagnosis      String?
+  advice         String?
+  followUpDate   DateTime? // date only
+
+  prescriptionItems PrescriptionItem[]
+
+  @@index([clinicId, checkedInAt])
+  @@index([clinicId, status])
+  @@index([patientId, checkedInAt])
+}
+
+model PrescriptionItem {
+  id           String  @id @default(cuid())
+  visitId      String
+  visit        Visit   @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  medicine     String
+  dosage       String? // e.g. 500 mg
+  frequency    String? // e.g. 1-0-1
+  duration     String? // e.g. 5 days
+  instructions String? // e.g. after food
+  sortOrder    Int     @default(0)
+}
+
 // ─── WhatsApp conversation state ───────────────────────────────────────────
 
 model Conversation {
-  id        String   @id @default(cuid())
-  waPhone   String   @unique
-  clinicId  String?
-  clinic    Clinic?  @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  id       String  @id @default(cuid())
+  waPhone  String  @unique
+  clinicId String?
+  clinic   Clinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
 
   // Simple state machine — see lib/conversation.ts
-  step      String   @default("start")
+  step  String @default("start")
   // JSON blob of in-progress selections (doctorId, date, slot, name…)
-  draft     String   @default("{}")
+  draft String @default("{}")
 
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())

@@ -1,4 +1,4 @@
-import { formatInTimeZone } from "date-fns-tz";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -19,4 +19,20 @@ export function statusBadge(status: string) {
     default:
       return "bg-slate-100 text-slate-600";
   }
+}
+
+/** [start, end) of a calendar day in the hospital's timezone. Defaults to today. */
+export function dayRange(tz: string, dateStr?: string) {
+  const day = dateStr ?? formatInTimeZone(new Date(), tz, "yyyy-MM-dd");
+  const start = fromZonedTime(`${day}T00:00:00`, tz);
+  return { day, start, end: new Date(start.getTime() + 24 * 3600_000) };
+}
+
+/** Date-only columns are stored as UTC midnight. */
+export function parseDateOnly(s: string | null | undefined) {
+  return s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00Z`) : null;
+}
+
+export function dateOnlyValue(d: Date | null | undefined) {
+  return d ? d.toISOString().slice(0, 10) : "";
 }

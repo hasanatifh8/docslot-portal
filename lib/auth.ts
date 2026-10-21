@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
+import { can, type Permission } from "@/lib/rbac";
 
 const COOKIE = "docslot_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
@@ -42,7 +44,7 @@ export async function getCurrentUser() {
     where: { id },
     include: { user: { include: { clinic: true } } },
   });
-  if (!session || session.expiresAt < new Date()) {
+  if (!session || session.expiresAt < new Date() || !session.user.active) {
     if (session) await prisma.session.delete({ where: { id } }).catch(() => {});
     return null;
   }
@@ -53,5 +55,22 @@ export async function getCurrentUser() {
 export async function requireUser() {
   const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHENTICATED");
+  return user;
+}
+
+/**
+ * Pages: signed-in user holding `perm`, otherwise bounce to the dashboard.
+ * Actions: pass `{ throwOnDeny: true }` so a forged request fails loudly.
+ */
+export async function requirePermission(perm: Permission, opts: { throwOnDeny?: boolean } = {}) {
+  const user = await getCurrentUser();
+  if (!user) {
+    if (opts.throwOnDeny) throw new Error("UNAUTHENTICATED");
+    redirect("/login");
+  }
+  if (!can(user.role, perm)) {
+    if (opts.throwOnDeny) throw new Error("FORBIDDEN");
+    redirect("/dashboard");
+  }
   return user;
 }
