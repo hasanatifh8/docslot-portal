@@ -98,3 +98,74 @@
     stroke-dasharray: none;
   }
 }
+
+/* ─── Login page ─────────────────────────────────────────────────────────── */
+
+/* Looping heartbeat trace on the hero monitor */
+.login-ecg {
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: login-ecg 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes login-ecg {
+  0% {
+    stroke-dashoffset: 1200;
+    opacity: 0.2;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.15;
+  }
+}
+
+.login-glow {
+  animation: login-glow 3s ease-in-out infinite;
+}
+@keyframes login-glow {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.03);
+  }
+}
+
+.login-dots {
+  background-image:
+    radial-gradient(rgb(13 148 136 / 0.18) 1.5px, transparent 1.5px),
+    radial-gradient(rgb(16 185 129 / 0.1) 1.5px, transparent 1.5px);
+  background-size: 32px 32px;
+  background-position:
+    0 0,
+    16px 16px;
+}
+
+.login-glass {
+  background: rgb(255 255 255 / 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgb(255 255 255 / 0.8);
+  box-shadow:
+    0 20px 45px -15px rgb(11 74 62 / 0.12),
+    0 0 1px 1px rgb(255 255 255 / 0.7) inset;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-ecg {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .login-glow {
+    animation: none;
+  }
+}
