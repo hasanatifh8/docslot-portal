@@ -80,7 +80,7 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
   return (
     <div
       className={cn(
-        "shadow-care rounded-2xl bg-white ring-1 ring-brand-900/[0.06]",
+        "shadow-care rounded-2xl bg-white/[0.93] ring-1 ring-white/70 backdrop-blur-sm [box-shadow:0_1px_2px_rgb(15_63_60/0.05),0_10px_30px_-12px_rgb(15_63_60/0.14),inset_0_0_0_1px_rgb(15_63_60/0.04)]",
         className
       )}
       {...props}

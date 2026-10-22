@@ -113,6 +113,67 @@
   }
 }
 
+/* ─── App backdrop ───────────────────────────────────────────────────────── */
+/* Soft colour mesh + medical line-art, fixed behind every app screen. Kept
+   faint so data on cards always has full contrast. */
+
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 40rem at 0% 0%, rgb(153 236 220 / 0.8), transparent 62%),
+    radial-gradient(52rem 38rem at 100% 0%, rgb(173 222 253 / 0.75), transparent 62%),
+    radial-gradient(46rem 34rem at 88% 100%, rgb(255 214 186 / 0.7), transparent 62%),
+    radial-gradient(50rem 36rem at 8% 100%, rgb(214 204 254 / 0.6), transparent 62%),
+    radial-gradient(34rem 26rem at 50% 55%, rgb(204 251 241 / 0.55), transparent 65%),
+    linear-gradient(180deg, #effaf7 0%, #ecf5fb 50%, #f8f1ec 100%);
+}
+.app-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/brand/medical-pattern.svg");
+  background-size: 320px 320px;
+  opacity: 0.07;
+  -webkit-mask-image: linear-gradient(180deg, black 0%, rgb(0 0 0 / 0.65) 55%, black 100%);
+  mask-image: linear-gradient(180deg, black 0%, rgb(0 0 0 / 0.65) 55%, black 100%);
+}
+/* Slow-drifting glow so the screen feels alive without distracting. */
+.app-backdrop::after {
+  content: "";
+  position: absolute;
+  width: 36rem;
+  height: 36rem;
+  left: 40%;
+  top: 20%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(52 189 172 / 0.24), transparent 65%);
+  filter: blur(20px);
+  animation: backdrop-drift 28s ease-in-out infinite alternate;
+}
+@keyframes backdrop-drift {
+  from {
+    transform: translate(-20%, -10%) scale(1);
+  }
+  to {
+    transform: translate(25%, 25%) scale(1.15);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-backdrop::after {
+    animation: none;
+  }
+}
+
+/* Frosted glass for the shell (sidebar, top bar) */
+.glass {
+  background: rgb(255 255 255 / 0.72);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+}
+
 /* ─── Micro-interactions ─────────────────────────────────────────────────── */
 
 @keyframes toast-in {

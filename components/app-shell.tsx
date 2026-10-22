@@ -30,6 +30,7 @@ export function AppShell({
   return (
     <ToastProvider>
       <div className="flex flex-1 flex-col md:flex-row">
+        <div aria-hidden className="app-backdrop" />
         {open && (
           <div
             className="fixed inset-0 z-30 bg-brand-900/30 backdrop-blur-[1px] md:hidden"
@@ -39,7 +40,7 @@ export function AppShell({
         )}
 
         <aside
-          className={`fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col border-r border-brand-900/[0.06] bg-white transition-transform duration-200 md:sticky md:top-0 md:h-dvh md:w-64 md:shrink-0 md:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col border-r border-white/60 bg-white/95 shadow-[4px_0_24px_-12px_rgb(15_63_60/0.12)] transition-transform md:bg-transparent md:[background:linear-gradient(180deg,rgb(255_255_255/0.82),rgb(240_250_248/0.72))] md:backdrop-blur-xl duration-200 md:sticky md:top-0 md:h-dvh md:w-64 md:shrink-0 md:translate-x-0 ${
             open ? "translate-x-0" : ""
           }`}
         >
@@ -73,7 +74,7 @@ export function AppShell({
           <SidebarNav role={role} onNavigate={() => setOpen(false)} />
 
           <div className="p-3">
-            <div className="flex items-center gap-3 rounded-xl bg-canvas px-2.5 py-2 ring-1 ring-brand-900/[0.05]">
+            <div className="flex items-center gap-3 rounded-xl bg-white/70 px-2.5 py-2 ring-1 ring-brand-900/[0.06]">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-xs font-semibold text-white">
                 {initials}
               </div>
@@ -103,7 +104,7 @@ export function AppShell({
 
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar role={role} onMenu={() => setOpen(true)} />
-          <main className="min-w-0 flex-1 bg-canvas">
+          <main className="min-w-0 flex-1">
             <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8">{children}</div>
           </main>
         </div>
@@ -115,7 +116,7 @@ export function AppShell({
 
 function TopBar({ role, onMenu }: { role: string; onMenu: () => void }) {
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-brand-900/[0.06] bg-white/85 px-3 backdrop-blur sm:gap-3 sm:px-8">
+    <header className="glass sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/70 px-3 shadow-[0_8px_24px_-18px_rgb(15_63_60/0.25)] sm:gap-3 sm:px-8">
       <button
         type="button"
         onClick={onMenu}
