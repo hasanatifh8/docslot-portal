@@ -2,7 +2,6 @@
 
 import { useActionState } from "react";
 import { Lock, Mail } from "lucide-react";
-import Link from "next/link";
 import { loginAction, type FormState } from "@/app/actions/auth";
 import { AuthShell, Button, Field, Input } from "@/components/ui";
 import { Logo } from "@/components/brand";
@@ -42,10 +41,7 @@ export default function LoginPage() {
       </form>
 
       <p className="mt-5 text-center text-sm text-slate-500">
-        New hospital or clinic?{" "}
-        <Link href="/signup" className="font-medium text-brand-600 hover:text-brand-700">
-          Register your hospital
-        </Link>
+        Need an account? Ask your hospital administrator.
       </p>
     </AuthShell>
   );

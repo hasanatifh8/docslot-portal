@@ -64,7 +64,7 @@ the webhook flow locally.
 
 | Piece | Where | Notes |
 |---|---|---|
-| Portal (auth, config, dashboard) | `app/(app)/*`, `app/login`, `app/signup` | session cookie auth, `lib/auth.ts`, roles in `lib/rbac.ts` |
+| Portal (auth, config, dashboard) | `app/(app)/*`, `app/login`; hospitals are created by the platform admin at `/admin` (`lib/platform-auth.ts`) | session cookie auth, `lib/auth.ts`, roles in `lib/rbac.ts` |
 | Patients | `app/(app)/patients/*`, `app/actions/patients.ts` | UHID sequence in `lib/patients.ts` |
 | OPD | `app/(app)/opd/*`, `app/actions/opd.ts`, `lib/encounter.ts` | state machine; PDF at `/api/visits/[id]/prescription` |
 | Staff | `app/(app)/staff`, `app/actions/staff.ts` | admin-only user management |
