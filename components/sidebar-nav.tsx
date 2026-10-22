@@ -20,7 +20,9 @@ export function SidebarNav({ role, onNavigate }: { role: string; onNavigate?: ()
             </div>
             <div className="space-y-0.5">
               {items.map(({ href, label, icon: Icon, tone }) => {
-                const active = pathname === href || pathname.startsWith(href + "/");
+                // A parent like /finance shouldn't light up on its own child entry (/finance/expenses).
+                const childEntry = NAV_SECTIONS.some((s) => s.items.some((i) => i.href !== href && i.href.startsWith(href + "/") && pathname.startsWith(i.href)));
+                const active = !childEntry && (pathname === href || pathname.startsWith(href + "/"));
                 return (
                   <Link
                     key={href}

@@ -5,6 +5,7 @@ import { can } from "@/lib/rbac";
 import { fmt } from "@/lib/format";
 import { audit } from "@/lib/audit";
 import { reportWindow } from "@/lib/reports";
+import { dailySeries, shiftMonth, toMonths } from "@/lib/finance";
 
 const csv = (rows: (string | number | null | undefined)[][]) =>
   rows.map((r) => r.map((c) => (c == null ? "" : /[",\n]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : String(c))).join(",")).join("\r\n");
@@ -13,13 +14,25 @@ const csv = (rows: (string | number | null | undefined)[][]) =>
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user || !can(user.role, "reports.view")) return new Response("Forbidden", { status: 403 });
+  // Patient-level visit rows are clinical data — not for the finance-only role.
+  if (req.nextUrl.searchParams.get("type") === "visits" && !can(user.role, "patients.view")) return new Response("Forbidden", { status: 403 });
   const tz = user.clinic.timezone;
   const sp = req.nextUrl.searchParams;
   const w = reportWindow(tz, { from: sp.get("from") ?? undefined, to: sp.get("to") ?? undefined, range: "custom" });
-  const type = sp.get("type") === "payments" ? "payments" : "visits";
+  const type = ["payments", "pnl"].includes(sp.get("type") ?? "") ? sp.get("type")! : "visits";
 
   let body: string;
-  if (type === "visits") {
+  if (type === "pnl") {
+    // 12 months ending with ?month=YYYY-MM (default: this month)
+    const month = /^\d{4}-\d{2}$/.test(sp.get("month") ?? "") ? sp.get("month")! : w.to.slice(0, 7);
+    const first = `${shiftMonth(month, -11)}-01`;
+    const last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)).toISOString().slice(0, 10);
+    const months = toMonths(await dailySeries(user.clinicId, tz, first, last));
+    body = csv([
+      ["Month", "Patients seen", "Billed (₹)", "Collected (₹)", "Expenses (₹)", "Net profit (₹)", "Margin %"],
+      ...months.map((m) => [m.month, m.visits, m.billed / 100, m.collected / 100, m.expenses / 100, m.profit / 100, m.collected ? Math.round((m.profit / m.collected) * 100) : ""]),
+    ]);
+  } else if (type === "visits") {
     const visits = await prisma.visit.findMany({
       where: { clinicId: user.clinicId, checkedInAt: { gte: w.start, lt: w.end } },
       orderBy: { checkedInAt: "asc" },

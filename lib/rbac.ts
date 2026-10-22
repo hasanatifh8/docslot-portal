@@ -1,6 +1,6 @@
 // Role-based access. Pure module — safe to import from client components.
 
-export const ROLES = ["admin", "doctor", "junior_doctor", "nurse", "receptionist"] as const;
+export const ROLES = ["admin", "doctor", "junior_doctor", "nurse", "receptionist", "accountant"] as const;
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -9,9 +9,11 @@ export const ROLE_LABELS: Record<Role, string> = {
   junior_doctor: "Junior doctor",
   nurse: "Nurse",
   receptionist: "Receptionist",
+  accountant: "Accountant",
 };
 
-const ALL: readonly Role[] = ROLES;
+// Everyone who works with patients (the accountant sees money, not charts).
+const ALL: readonly Role[] = ["admin", "doctor", "junior_doctor", "nurse", "receptionist"];
 
 const PERMISSIONS = {
   "patients.view": ALL,
@@ -24,11 +26,13 @@ const PERMISSIONS = {
   "opd.triage": ["admin", "junior_doctor", "nurse"],
   "opd.consult": ["admin", "doctor"],
   "followups.view": ["admin", "receptionist", "doctor", "nurse"],
-  "billing.view": ["admin", "receptionist"],
+  "billing.view": ["admin", "receptionist", "accountant"],
   "billing.collect": ["admin", "receptionist"],
   // Discounts and refunds move money out — admin only.
   "billing.adjust": ["admin"],
-  "reports.view": ["admin"],
+  "reports.view": ["admin", "accountant"],
+  "finance.view": ["admin", "accountant"],
+  "expenses.manage": ["admin", "accountant"],
   "audit.view": ["admin"],
   "doctors.manage": ["admin"],
   "staff.manage": ["admin"],

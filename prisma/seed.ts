@@ -14,6 +14,7 @@ import { hashPassword } from "../lib/auth";
 import { formatUhid } from "../lib/patients";
 import { formatInvoiceNo } from "../lib/billing";
 import { dayRange } from "../lib/format";
+import { seedHistory } from "./seed-history";
 
 async function main() {
   const code = "sunrise";
@@ -49,8 +50,8 @@ async function main() {
       departmentId: general.id,
       slotMinutes: 15,
       room: "3",
-      consultFee: 50000,
-      followUpFee: 0,
+      consultFee: 60000,
+      followUpFee: 20000,
       followUpDays: 7,
     },
   });
@@ -63,7 +64,7 @@ async function main() {
       departmentId: ortho.id,
       slotMinutes: 20,
       room: "7",
-      consultFee: 70000,
+      consultFee: 80000,
       followUpFee: 30000,
       followUpDays: 14,
     },
@@ -77,8 +78,8 @@ async function main() {
       departmentId: paeds.id,
       slotMinutes: 15,
       room: "5",
-      consultFee: 40000,
-      followUpFee: 0,
+      consultFee: 50000,
+      followUpFee: 15000,
       followUpDays: 5,
     },
   });
@@ -192,7 +193,21 @@ async function main() {
   const tz = clinic.timezone;
   const { start: today } = dayRange(tz);
   const at = (dayOffset: number, h: number, m = 0) => new Date(today.getTime() + dayOffset * 86400_000 + (h * 60 + m) * 60_000);
-  let inv = 1;
+
+  // ~5 months of realistic history for finance charts, forecasts and reports.
+  const admin = users.find((u) => u.role === "admin")!;
+  const hist = await seedHistory(prisma, {
+    clinicId: clinic.id,
+    today,
+    doctors: { general: mehra, ortho: sharma, paeds: iyer },
+    receptionId: reception.id,
+    nurseId: nurse.id,
+    doctorUserId: drUser.id,
+    adminId: admin.id,
+    firstUhid: patientRows.length + 1,
+    days: 330,
+  });
+  let inv = hist.nextInvoiceNo;
   const bill = async (patientId: string, visitId: string, label: string, fee: number, paidBy: string | null, by: string, when: Date) =>
     prisma.invoice.create({
       data: {
@@ -274,11 +289,19 @@ async function main() {
     });
   }
 
-  await prisma.clinic.update({ where: { id: clinic.id }, data: { nextUhid: patients.length + 1, nextInvoiceNo: inv, phone: "020 4000 1234" } });
+  await prisma.clinic.update({
+    where: { id: clinic.id },
+    data: { nextUhid: hist.nextUhid, nextInvoiceNo: inv, phone: "020 4000 1234", monthlyTarget: 80000000 },
+  });
+  // Demo accountant (finance only).
+  await prisma.user.create({
+    data: { clinicId: clinic.id, email: "accounts@docslot.test", name: "Vivek Bansal", role: "accountant", passwordHash },
+  });
+  console.log(`  History: ${hist.visits} visits, ${hist.invoices} bills, ${hist.expenses} expenses over 330 days`);
   void priya;
 
   console.log(`Seeded '${clinic.name}'`);
-  console.log("  Logins (password demo1234): demo@ / reception@ / nurse@ / jr.rao@ / dr.mehra@ docslot.test");
+  console.log("  Logins (password demo1234): demo@ / reception@ / nurse@ / jr.rao@ / dr.mehra@ / accounts@ docslot.test");
   console.log("  Demo family on +91 98123 45678: Rahul, Priya, Anaya Verma");
   console.log("  WhatsApp code : sunrise");
 }

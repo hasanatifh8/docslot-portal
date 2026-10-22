@@ -196,6 +196,37 @@ before their follow-up (`lib/reminders.ts`).
 - Platform admin (`/admin`) can **suspend / reactivate** a hospital (its staff
   are signed out immediately).
 
+### 3.10 Finance, forecasting & reports (admin, accountant)
+
+- **Finance** (`/finance`): month picker; KPIs with like-for-like change vs
+  last month (collected, expenses, net profit & margin, patients, revenue per
+  visit, outstanding dues); **daily collections with a 14-day forecast** and
+  likely range; **target ring** with projected month-end (target set in
+  Settings); **OPD capacity** booked for the next 7 days; 12-month collections
+  vs expenses (with table view and P&L CSV); revenue by doctor and service;
+  payment-mode mix; expenses by category.
+- **Expenses** (`/finance/expenses`): category chips, amount, date, mode,
+  vendor, bill no.; recurring entries (rent, salaries) are offered for copying
+  into the next month in one click.
+- **Forecasting** (`lib/forecast.ts`): same-weekday average of the last 6
+  weeks × recent trend (±25 %), with an ≈80 % range; closed weekdays and
+  holidays are left blank. Simple enough to explain to an owner.
+- **Reports** (`/reports`): patient volume (new vs follow-up) with forecast,
+  busiest-hours heat map for staffing, doctor and department tables.
+- **Daily report** (`/reports/daily`) and **Monthly P&L** (`/reports/monthly`):
+  printable, with cash-to-bank reconciliation and previous-month comparison.
+- **Accountant role**: billing, finance, expenses and reports — no clinical data.
+- Charts follow one-axis, thin-mark, legend-for-2+-series rules; colours are
+  validated for colour-blind safety (`lib/chart-palette.ts`); every chart has
+  hover detail and a table or labelled values.
+
+### 3.11 Sales website (`/`)
+
+Logged-out visitors see the product site: hero with live screenshots,
+features, front-desk / doctor / owner showcases, onboarding steps, pricing
+(edit `PLANS` in `app/page.tsx`), FAQ and a **Book a demo** form. Requests are
+stored as leads and listed, with status, on the platform admin page (`/admin`).
+
 ## 4. Responsive behaviour
 
 | Width | Layout |

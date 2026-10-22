@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AlertTriangle, CalendarClock, CalendarOff, CalendarSync, IndianRupee, Siren, CalendarHeart, ClipboardCheck, ClipboardPlus, HeartPulse, Stethoscope, UserRoundPlus, CalendarPlus, BarChart3, Monitor } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
@@ -23,6 +24,8 @@ import {
 
 export default async function DashboardPage() {
   const user = await requireUser();
+  // The accountant works with money, not patients.
+  if (!can(user.role, "patients.view")) redirect(can(user.role, "finance.view") ? "/finance" : "/account");
   const clinic = user.clinic;
   const tz = clinic.timezone;
   const { start: dayStart, end: dayEnd } = dayRange(tz);

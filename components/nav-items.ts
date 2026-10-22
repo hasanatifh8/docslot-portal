@@ -1,6 +1,6 @@
 // Sidebar structure. Shared by the sidebar and the command palette — kept out
 // of "use client" modules so both server and client code can import it.
-import { BarChart3, CalendarHeart, CalendarSync, ClipboardPlus, IndianRupee, LayoutDashboard, ScrollText, Settings, Stethoscope, UserRoundCog, UsersRound } from "@/components/icons";
+import { ReceiptText, Wallet, BarChart3, CalendarHeart, CalendarSync, ClipboardPlus, IndianRupee, LayoutDashboard, ScrollText, Settings, Stethoscope, UserRoundCog, UsersRound } from "@/components/icons";
 import type { AppIcon } from "@/components/icons";
 import type { Permission } from "@/lib/rbac";
 
@@ -32,8 +32,12 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
     ],
   },
   {
-    title: "Billing",
-    items: [{ href: "/billing", label: "Billing & receipts", icon: IndianRupee, tone: "emerald", perm: "billing.view" }],
+    title: "Money",
+    items: [
+      { href: "/billing", label: "Billing & receipts", icon: ReceiptText, tone: "emerald", perm: "billing.view" },
+      { href: "/finance", label: "Finance & forecast", icon: IndianRupee, tone: "brand", perm: "finance.view" },
+      { href: "/finance/expenses", label: "Expenses", icon: Wallet, tone: "amber", perm: "finance.view" },
+    ],
   },
   {
     title: "Insights",

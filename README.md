@@ -20,6 +20,7 @@ and get reminders entirely in chat.
 | Junior doctor | Triage: capture vitals and hand off to the senior doctor |
 | Nurse | Register/edit patients, OPD check-in, triage |
 | Senior doctor | Consult, prescribe and finalize (own patients only) |
+| Accountant | Billing, finance & forecasting, expenses, reports — no clinical records |
 
 ### OPD pipeline
 
@@ -53,7 +54,7 @@ Portal: <http://localhost:3000>  ·  Prisma Studio: `npm run db:studio`
 
 Demo logins (password `demo1234`): `demo@docslot.test` (admin),
 `reception@docslot.test`, `nurse@docslot.test`, `jr.rao@docslot.test`,
-`dr.mehra@docslot.test`.
+`dr.mehra@docslot.test`, `accounts@docslot.test` (accountant). The seed also creates ~11 months of realistic history for finance charts and forecasts.
 
 **Upgrading an existing DocSlot database:** `npm run db:push` (adds tables
 and columns; drops the one-patient-per-phone unique index so families can

@@ -1,5 +1,7 @@
 import { CalendarHeart, CalendarOff, Hospital, IndianRupee, MessageCircle, Settings, Trash2 } from "@/components/icons";
 import { toggleService } from "@/app/actions/billing";
+import { setMonthlyTarget } from "@/app/actions/finance";
+import { rupeeInput } from "@/lib/money";
 import { ServiceForm } from "@/components/service-form";
 import { rupees } from "@/lib/money";
 import { prisma } from "@/lib/db";
@@ -96,6 +98,21 @@ export default async function SettingsPage() {
             <div className="sm:col-span-2">
               <Button type="submit">Save changes</Button>
             </div>
+          </form>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle icon={IndianRupee}>Monthly collection target</CardTitle>
+          <CardDescription>Shown as a progress ring with a month-end projection on the Finance page.</CardDescription>
+        </CardHeader>
+        <CardBody>
+          <form action={setMonthlyTarget} className="flex flex-wrap items-end gap-2">
+            <Field label="Target (₹ per month)" className="w-56">
+              <Input name="monthlyTarget" inputMode="decimal" defaultValue={clinic.monthlyTarget ? rupeeInput(clinic.monthlyTarget) : ""} placeholder="1500000" className="tabular" />
+            </Field>
+            <Button variant="secondary">Save target</Button>
           </form>
         </CardBody>
       </Card>

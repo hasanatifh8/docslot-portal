@@ -6,7 +6,12 @@ import { requirePermission } from "@/lib/auth";
 import { fmt } from "@/lib/format";
 import { rupees } from "@/lib/money";
 import { PRESETS, avg, mins, reportWindow } from "@/lib/reports";
-import { Card, CardHeader, CardTitle, EmptyState, IconChip, PageHeader, buttonClass, chipClass, cn } from "@/components/ui";
+import { dayRange } from "@/lib/format";
+import { dailySeries, hospitalClosedDays } from "@/lib/finance";
+import { forecast, nextDates, type ForecastPoint } from "@/lib/forecast";
+import { VolumeChart } from "@/components/charts";
+import { Heatmap } from "@/components/mini-charts";
+import { Card, CardBody, CardHeader, CardTitle, EmptyState, IconChip, PageHeader, buttonClass, chipClass, cn } from "@/components/ui";
 
 export default async function ReportsPage({ searchParams }: PageProps<"/reports">) {
   const user = await requirePermission("reports.view");
@@ -52,8 +57,33 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
   const noShowRate = noShow + attended ? Math.round((noShow / (noShow + attended)) * 100) : null;
   const whatsappShare = appts.length ? Math.round((appts.filter((a) => a.source === "whatsapp").length / appts.length) * 100) : null;
 
-  const perDay = w.days.map((d) => ({ day: d, count: done.filter((v) => formatInTimeZone(v.checkedInAt, tz, "yyyy-MM-dd") === d).length }));
-  const maxDay = Math.max(1, ...perDay.map((d) => d.count));
+  const perDay = w.days.map((d) => {
+    const mine = done.filter((v) => formatInTimeZone(v.checkedInAt, tz, "yyyy-MM-dd") === d);
+    return { day: d, count: mine.length, newVisits: mine.filter((v) => v.visitType !== "follow_up").length, followUps: mine.filter((v) => v.visitType === "follow_up").length };
+  });
+
+  // Forecast the next 14 days when the window ends today.
+  const today = dayRange(tz).day;
+  let fc: ForecastPoint[] = [];
+  if (w.to === today) {
+    const hist = await dailySeries(user.clinicId, tz, (() => { const d = new Date(`${today}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 84); return d.toISOString().slice(0, 10); })(), today);
+    fc = forecast(hist.filter((h) => h.date < today).map((h) => ({ date: h.date, value: h.visits })), nextDates(today, 14), { closed: await hospitalClosedDays(user.clinicId, tz) });
+  }
+  const volume = [
+    ...perDay.map((d) => ({ date: d.day, newVisits: d.newVisits, followUps: d.followUps })),
+    ...fc.map((p) => (p.closed ? { date: p.date } : { date: p.date, forecast: p.value, low: p.low, high: p.high })),
+  ];
+  const fcTotal = fc.reduce((s, p) => s + p.value, 0);
+
+  // When patients arrive: weekday (Mon=0) × hour, from check-in times.
+  const HOURS = Array.from({ length: 13 }, (_, i) => i + 8); // 8 am – 8 pm
+  const grid = Array.from({ length: 7 }, () => HOURS.map(() => 0));
+  for (const v of visits) {
+    const wd = (Number(formatInTimeZone(v.checkedInAt, tz, "i")) + 6) % 7;
+    const h = Number(formatInTimeZone(v.checkedInAt, tz, "H"));
+    const idx = HOURS.indexOf(h);
+    if (idx >= 0) grid[wd][idx]++;
+  }
 
   const byDoctor = doctors
     .map((d) => {
@@ -96,6 +126,12 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
         description={w.from === w.to ? fmt(w.start, tz, "EEEE, d MMMM yyyy") : `${fmt(w.start, tz, "d MMM")} – ${fmt(new Date(w.end.getTime() - 1), tz, "d MMM yyyy")}`}
         actions={
           <div className="flex flex-wrap gap-2">
+            <Link href="/reports/daily" className={buttonClass("secondary", "sm")}>
+              Daily report
+            </Link>
+            <Link href="/reports/monthly" className={buttonClass("secondary", "sm")}>
+              Monthly P&amp;L
+            </Link>
             <a href={`/api/reports/export?type=visits&${exportQ}`} className={buttonClass("secondary", "sm")}>
               <Download className="h-3.5 w-3.5" /> Visits CSV
             </a>
@@ -139,45 +175,29 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
             <CardTitle icon={BarChart3}>Patients seen per day</CardTitle>
             <span className="text-xs text-slate-400">{newPatients} new registrations</span>
           </CardHeader>
-          {done.length === 0 ? (
-            <EmptyState title="No completed visits in this period" />
-          ) : (
-            <div className="p-5">
-              <div className="flex h-44 items-end gap-[2px] border-b border-slate-200" role="img" aria-label="Completed visits per day">
-                {perDay.map((d) => (
-                  <div key={d.day} className="group relative flex h-full flex-1 items-end justify-center">
-                    <div
-                      className="w-full max-w-10 rounded-t-[4px] bg-brand-500 transition-colors group-hover:bg-brand-700"
-                      style={{ height: `${(d.count / maxDay) * 100}%`, minHeight: d.count ? 4 : 0 }}
-                    />
-                    <div className="pointer-events-none absolute bottom-full mb-1 hidden rounded-lg bg-slate-900 px-2 py-1 text-[11px] whitespace-nowrap text-white group-hover:block">
-                      {fmt(new Date(`${d.day}T12:00:00Z`), "UTC", "EEE d MMM")}: {d.count} seen
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-1.5 flex gap-[2px] text-[10px] text-slate-400">
-                {perDay.map((d, i) => (
-                  <div key={d.day} className="flex-1 text-center">
-                    {perDay.length <= 10 || i % Math.ceil(perDay.length / 8) === 0 ? fmt(new Date(`${d.day}T12:00:00Z`), "UTC", perDay.length <= 10 ? "EEE d" : "d MMM") : ""}
-                  </div>
-                ))}
-              </div>
-              <details className="mt-3 text-xs">
-                <summary className="cursor-pointer text-slate-500">Show as table</summary>
-                <table className="mt-2 w-full">
-                  <tbody>
-                    {perDay.map((d) => (
-                      <tr key={d.day} className="border-t border-slate-100">
-                        <td className="py-1 text-slate-600">{d.day}</td>
-                        <td className="tabular py-1 text-right font-medium">{d.count}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </details>
-            </div>
-          )}
+          <CardBody>
+            <VolumeChart data={volume} />
+            {fc.length > 0 && (
+              <p className="mt-2 text-xs text-slate-500">
+                Next 14 days: about <strong className="text-slate-800">{fcTotal}</strong> patients expected (dashed line; shaded band = likely range).
+              </p>
+            )}
+            <details className="mt-3 text-xs">
+              <summary className="cursor-pointer text-slate-500">Show as table</summary>
+              <table className="mt-2 w-full">
+                <tbody>
+                  {perDay.map((d) => (
+                    <tr key={d.day} className="border-t border-slate-100">
+                      <td className="py-1 text-slate-600">{d.day}</td>
+                      <td className="tabular py-1 text-right">{d.newVisits} new</td>
+                      <td className="tabular py-1 text-right">{d.followUps} follow-up</td>
+                      <td className="tabular py-1 text-right font-medium">{d.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          </CardBody>
         </Card>
 
         <Card>
@@ -203,6 +223,16 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
           )}
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle icon={Clock}>Busiest hours</CardTitle>
+          <p className="mt-0.5 text-xs text-slate-500">Check-ins by weekday and hour — use it to plan reception and nursing shifts.</p>
+        </CardHeader>
+        <CardBody>
+          <Heatmap grid={grid} hours={HOURS} />
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader>

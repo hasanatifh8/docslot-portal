@@ -44,6 +44,8 @@ model Clinic {
   phone         String?
   // Suspended hospitals can't sign in (platform admin, /admin)
   active        Boolean @default(true)
+  // Monthly collection target in paise (0 = none) — Finance dashboard
+  monthlyTarget Int     @default(0)
 
   createdAt DateTime @default(now())
 
@@ -59,6 +61,7 @@ model Clinic {
   services      ServiceItem[]
   auditLogs     AuditLog[]
   templates     ConsultTemplate[]
+  expenses      Expense[]
 }
 
 // ─── Portal auth ───────────────────────────────────────────────────────────
@@ -86,6 +89,7 @@ model User {
   addenda         VisitAddendum[]
   payments        Payment[]
   invoicesCreated Invoice[]
+  expenses        Expense[]
 
   visitsCheckedIn Visit[] @relation("VisitCheckedInBy")
   visitsTriaged   Visit[] @relation("VisitTriageBy")
@@ -485,4 +489,45 @@ model AuditLog {
 
   @@index([clinicId, createdAt])
   @@index([clinicId, entity, entityId])
+}
+
+// ─── Expenses ──────────────────────────────────────────────────────────────
+
+model Expense {
+  id          String   @id @default(cuid())
+  clinicId    String
+  clinic      Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  date        DateTime // date only
+  // salaries | rent | utilities | consumables | equipment | maintenance | marketing | it | other
+  category    String
+  description String
+  amount      Int // paise
+  mode        String   @default("bank") // cash | upi | card | bank | cheque
+  vendor      String?
+  reference   String?
+  // Repeats every month (rent, salaries) — copied forward from the Expenses page
+  recurring   Boolean  @default(false)
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([clinicId, date])
+}
+
+// ─── Sales (public website) ────────────────────────────────────────────────
+
+// "Book a demo" requests from the marketing site; seen by the platform admin.
+model Lead {
+  id        String   @id @default(cuid())
+  name      String
+  hospital  String
+  phone     String
+  email     String?
+  city      String?
+  size      String? // clinic | 10-50 beds | 50-200 beds | 200+ beds
+  message   String?
+  status    String   @default("new") // new | contacted | won | lost
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }
