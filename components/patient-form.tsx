@@ -1,8 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import { registerPatient, updatePatient, type PatientFormState } from "@/app/actions/patients";
+import { updatePatient, type PatientFormState } from "@/app/actions/patients";
 import { Button, Field, FormMessage, Input, Select, Textarea } from "@/components/ui";
+import { useActionToast } from "@/components/toast";
+import { BLOOD_GROUPS, ID_TYPES, RELATIONS } from "@/lib/quick-picks";
 
 export type PatientFormValues = {
   id: string;
@@ -17,16 +19,16 @@ export type PatientFormValues = {
   emergencyPhone: string | null;
   allergies: string | null;
   chronicConditions: string | null;
+  relation: string | null;
+  idType: string | null;
+  idNumber: string | null;
 };
 
-const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-
-export function PatientForm({ patient }: { patient?: PatientFormValues }) {
-  const [state, action, pending] = useActionState<PatientFormState, FormData>(
-    patient ? updatePatient : registerPatient,
-    {}
-  );
+/** Edit an existing patient (new patients go through the registration wizard). */
+export function PatientForm({ patient }: { patient: PatientFormValues }) {
+  const [state, action, pending] = useActionState<PatientFormState, FormData>(updatePatient, {});
   const v = patient;
+  useActionToast(state, "Patient details saved");
 
   return (
     <form action={action} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -36,7 +38,7 @@ export function PatientForm({ patient }: { patient?: PatientFormValues }) {
       <Field label="Full name" className="sm:col-span-2">
         <Input name="name" required defaultValue={v?.name ?? ""} placeholder="Rahul Verma" />
       </Field>
-      <Field label="Phone (WhatsApp)" hint="With country code, e.g. 919812345678">
+      <Field label="Phone (WhatsApp)" hint="10-digit mobile, or with country code. Family members may share it.">
         <Input name="phone" required inputMode="numeric" defaultValue={v?.waPhone ?? ""} placeholder="919812345678" />
       </Field>
       <div className="grid grid-cols-2 gap-3">
@@ -54,6 +56,16 @@ export function PatientForm({ patient }: { patient?: PatientFormValues }) {
           <Input name="dob" type="date" defaultValue={v?.dob ?? ""} />
         </Field>
       </div>
+      <Field label="Relation to phone owner">
+        <Select name="relation" defaultValue={v?.relation ?? ""}>
+          <option value="">Not set</option>
+          {RELATIONS.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
       <Field label="Blood group">
         <Select name="bloodGroup" defaultValue={v?.bloodGroup ?? ""}>
           <option value="">Unknown</option>
@@ -74,6 +86,21 @@ export function PatientForm({ patient }: { patient?: PatientFormValues }) {
       <Field label="Emergency contact phone">
         <Input name="emergencyPhone" inputMode="tel" defaultValue={v?.emergencyPhone ?? ""} />
       </Field>
+      <div className="grid grid-cols-[8rem_1fr] gap-3 sm:col-span-2 sm:grid-cols-[10rem_1fr]">
+        <Field label="ID type">
+          <Select name="idType" defaultValue={v?.idType ?? ""}>
+            <option value="">None</option>
+            {ID_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="ID number">
+          <Input name="idNumber" defaultValue={v?.idNumber ?? ""} className="font-mono" />
+        </Field>
+      </div>
       <Field label="Allergies" className="sm:col-span-2">
         <Input name="allergies" defaultValue={v?.allergies ?? ""} placeholder="Penicillin, peanuts" />
       </Field>

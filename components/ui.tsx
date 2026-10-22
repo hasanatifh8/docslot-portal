@@ -4,28 +4,65 @@ export function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
+// Utility groups where a caller's class must replace the component default
+// (CSS order, not class order, decides otherwise — e.g. w-full beats w-28).
+const GROUPS: [string, RegExp][] = [
+  ["w", /^w-/],
+  ["h", /^h-/],
+  ["px", /^px-/],
+  ["pl", /^pl-/],
+  ["pr", /^pr-/],
+  ["py", /^py-/],
+  ["size", /^text-(xs|sm|base|lg|\d?xl|\[)/],
+  ["color", /^text-(?!xs|sm|base|lg|\d?xl|\[|left|right|center)/],
+  ["bg", /^bg-(?!gradient|clip)/],
+  ["font", /^font-(normal|medium|semibold|bold|extrabold)/],
+  ["rounded", /^rounded(-|$)/],
+  ["gap", /^gap-/],
+  ["display", /^(hidden|block|inline|inline-block|flex|inline-flex|grid|inline-grid)$/],
+];
+
+function groupOf(cls: string) {
+  const at = cls.lastIndexOf(":");
+  const variant = at < 0 ? "" : cls.slice(0, at + 1);
+  const util = cls.slice(at + 1);
+  const g = GROUPS.find(([, re]) => re.test(util));
+  return g ? variant + g[0] : null;
+}
+
+/** Base classes with any conflicting utility (same variant + group) overridden by `extra`. */
+export function tw(base: string, extra?: string | false | null) {
+  if (!extra) return base;
+  const mine = extra.split(/\s+/).filter(Boolean);
+  const taken = new Set(mine.map(groupOf).filter(Boolean));
+  const kept = base.split(/\s+/).filter((c) => c && !taken.has(groupOf(c)));
+  return [...kept, ...mine].join(" ");
+}
+
 // ─── Button ────────────────────────────────────────────────────────────────
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
-type Size = "sm" | "md";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "success";
+type Size = "sm" | "md" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap";
+  "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap";
 
 const variants: Record<Variant, string> = {
   primary: "bg-brand-600 text-white hover:bg-brand-700 shadow-sm shadow-brand-900/10",
   secondary: "bg-white text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-brand-50 hover:text-brand-800 hover:ring-brand-200",
   ghost: "text-slate-600 hover:bg-brand-50 hover:text-brand-700",
   danger: "bg-white text-red-600 ring-1 ring-inset ring-red-200 hover:bg-red-50",
+  success: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm shadow-emerald-900/10",
 };
 
 const sizes: Record<Size, string> = {
   sm: "h-8 px-3 text-xs",
   md: "h-10 px-4 text-sm",
+  lg: "h-12 px-6 text-sm font-semibold",
 };
 
 export function buttonClass(variant: Variant = "primary", size: Size = "md", extra?: string) {
-  return cn(base, variants[variant], sizes[size], extra);
+  return tw(cn(base, variants[variant], sizes[size]), extra);
 }
 
 export function Button({
@@ -80,18 +117,18 @@ export function CardBody({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 // ─── Form controls ─────────────────────────────────────────────────────────
 
 const controlBase =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20";
+  "w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 aria-[invalid=true]:border-red-400 aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-red-500/15 disabled:bg-slate-50 disabled:text-slate-500";
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(controlBase, "h-10", className)} {...props} />;
+  return <input className={tw(cn(controlBase, "h-10"), className)} {...props} />;
 }
 
 export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(controlBase, "py-2", className)} {...props} />;
+  return <textarea className={tw(cn(controlBase, "py-2"), className)} {...props} />;
 }
 
 export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={cn(controlBase, "h-10", className)} {...props} />;
+  return <select className={tw(cn(controlBase, "h-10"), className)} {...props} />;
 }
 
 export function Field({
@@ -317,6 +354,105 @@ export function EmptyState({
       )}
       <p className="text-sm font-medium text-slate-700">{title}</p>
       {description && <p className="mt-1 max-w-xs text-xs text-slate-500">{description}</p>}
+    </div>
+  );
+}
+
+// ─── Chips, keys, banners ──────────────────────────────────────────────────
+
+/** Pill styling for links used as filters (a <Chip> must not sit inside an <a>). */
+export function chipClass(active?: boolean, extra?: string) {
+  return cn(
+    "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium ring-1 transition-all ring-inset select-none",
+    active ? "bg-brand-600 text-white ring-brand-600 shadow-sm shadow-brand-700/20" : "bg-white text-slate-600 ring-slate-200 hover:bg-brand-50 hover:text-brand-800 hover:ring-brand-200",
+    extra
+  );
+}
+
+/** Toggleable pill — one-tap picks instead of typing. */
+export function Chip({
+  active,
+  tone = "brand",
+  className,
+  children,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; tone?: "brand" | "rose" | "amber" }) {
+  const on = {
+    brand: "bg-brand-600 text-white ring-brand-600 shadow-sm shadow-brand-700/20",
+    rose: "bg-rose-600 text-white ring-rose-600 shadow-sm shadow-rose-700/20",
+    amber: "bg-amber-500 text-white ring-amber-500 shadow-sm shadow-amber-700/20",
+  }[tone];
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      className={tw(
+        cn(
+          "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium ring-1 transition-all ring-inset select-none active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
+          active ? on : "bg-white text-slate-600 ring-slate-200 hover:bg-brand-50 hover:text-brand-800 hover:ring-brand-200"
+        ),
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function Kbd({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <kbd
+      className={cn(
+        "inline-flex h-5 min-w-5 items-center justify-center rounded border border-slate-200 bg-slate-50 px-1 font-sans text-[10px] font-medium text-slate-500",
+        className
+      )}
+    >
+      {children}
+    </kbd>
+  );
+}
+
+const bannerTones = {
+  info: "bg-sky-50 text-sky-900 ring-sky-600/15",
+  warn: "bg-amber-50 text-amber-900 ring-amber-600/20",
+  danger: "bg-rose-50 text-rose-900 ring-rose-600/15",
+  success: "bg-emerald-50 text-emerald-900 ring-emerald-600/15",
+};
+
+export function Banner({
+  tone = "info",
+  icon: Icon,
+  title,
+  children,
+  action,
+  className,
+}: {
+  tone?: keyof typeof bannerTones;
+  icon?: IconType;
+  title?: React.ReactNode;
+  children?: React.ReactNode;
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div role={tone === "danger" ? "alert" : undefined} className={cn("flex items-start gap-3 rounded-2xl px-4 py-3 text-sm ring-1 ring-inset", bannerTones[tone], className)}>
+      {Icon && <Icon className="mt-0.5 h-4 w-4 shrink-0" />}
+      <div className="min-w-0 flex-1">
+        {title && <div className="font-semibold">{title}</div>}
+        {children && <div className={cn(!!title && "mt-0.5", "text-[13px] opacity-90")}>{children}</div>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+/** Small labelled value used in summaries and receipts. */
+export function KeyValue({ label, value, className }: { label: string; value: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <dt className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">{label}</dt>
+      <dd className="mt-0.5 text-sm text-slate-900">{value ?? <span className="text-slate-400">—</span>}</dd>
     </div>
   );
 }

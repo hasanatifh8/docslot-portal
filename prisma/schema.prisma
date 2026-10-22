@@ -38,7 +38,12 @@ model Clinic {
   reminderOffsets String @default("1440,120") // 24h, 2h
 
   // Next patient UHID sequence number (see lib/patients.ts)
-  nextUhid Int @default(1)
+  nextUhid      Int     @default(1)
+  // Next invoice number (see lib/billing.ts)
+  nextInvoiceNo Int     @default(1)
+  phone         String?
+  // Suspended hospitals can't sign in (platform admin, /admin)
+  active        Boolean @default(true)
 
   createdAt DateTime @default(now())
 
@@ -50,26 +55,37 @@ model Clinic {
   appointments  Appointment[]
   conversations Conversation[]
   visits        Visit[]
+  invoices      Invoice[]
+  services      ServiceItem[]
+  auditLogs     AuditLog[]
+  templates     ConsultTemplate[]
 }
 
 // ─── Portal auth ───────────────────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(cuid())
-  clinicId     String
-  clinic       Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  email        String   @unique
-  passwordHash String
-  name         String
+  id                 String   @id @default(cuid())
+  clinicId           String
+  clinic             Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  email              String   @unique
+  passwordHash       String
+  name               String
   // admin | doctor (senior) | junior_doctor | nurse | receptionist — see lib/rbac.ts
-  role         String   @default("admin")
+  role               String   @default("admin")
   // For role = doctor: the Doctor record this login belongs to
-  doctorId     String?  @unique
-  doctor       Doctor?  @relation(fields: [doctorId], references: [id], onDelete: SetNull)
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  doctorId           String?  @unique
+  doctor             Doctor?  @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  active             Boolean  @default(true)
+  // Set when an admin creates the account or resets the password: the user
+  // picks their own password on next sign-in.
+  mustChangePassword Boolean  @default(false)
+  createdAt          DateTime @default(now())
 
-  sessions Session[]
+  sessions        Session[]
+  templates       ConsultTemplate[]
+  addenda         VisitAddendum[]
+  payments        Payment[]
+  invoicesCreated Invoice[]
 
   visitsCheckedIn Visit[] @relation("VisitCheckedInBy")
   visitsTriaged   Visit[] @relation("VisitTriageBy")
@@ -111,10 +127,19 @@ model Doctor {
   slotMinutes    Int         @default(15)
   // Buffer between appointments, minutes
   bufferMinutes  Int         @default(0)
+  // Consultation room/cabin shown on the token display
+  room           String?
+  // Fees in paise. A visit within `followUpDays` of the last completed visit
+  // with the same doctor is billed at `followUpFee`.
+  consultFee     Int         @default(50000)
+  followUpFee    Int         @default(0)
+  followUpDays   Int         @default(7)
   active         Boolean     @default(true)
   createdAt      DateTime    @default(now())
 
   workingHours WorkingHour[]
+  leaves       DoctorLeave[]
+  templates    ConsultTemplate[]
   appointments Appointment[]
   visits       Visit[]
   user         User?
@@ -130,6 +155,19 @@ model WorkingHour {
   // Minutes from midnight, clinic-local. e.g. 540 = 09:00, 780 = 13:00
   startMin Int
   endMin   Int
+}
+
+// A doctor's own leave (inclusive date range). No slots are offered.
+model DoctorLeave {
+  id        String   @id @default(cuid())
+  doctorId  String
+  doctor    Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  startDate DateTime // date only
+  endDate   DateTime // date only, inclusive
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([doctorId, startDate])
 }
 
 // Full-day closures (clinic-wide).
@@ -150,7 +188,10 @@ model Patient {
   // Hospital-unique ID shown on cards and prescriptions, e.g. "UH000042".
   // Nullable only so pre-HMS rows survive `db push`; assigned on first save.
   uhid              String?
-  waPhone           String // E.164, digits only — also the patient's contact number
+  // E.164, digits only — the contact number. Families often share one, so it
+  // is NOT unique; `relation` says how this patient relates to its owner.
+  waPhone           String
+  relation          String? // self | spouse | child | parent | sibling | other
   name              String?
   gender            String? // male | female | other
   dob               DateTime? // date only
@@ -161,13 +202,16 @@ model Patient {
   emergencyPhone    String?
   allergies         String?
   chronicConditions String?
+  idType            String? // aadhaar | abha | pan | passport | other
+  idNumber          String?
   createdAt         DateTime  @default(now())
 
   appointments Appointment[]
   visits       Visit[]
+  invoices     Invoice[]
 
-  @@unique([clinicId, waPhone])
   @@unique([clinicId, uhid])
+  @@index([clinicId, waPhone])
 }
 
 model Appointment {
@@ -232,8 +276,12 @@ model Visit {
   appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
   // Queue number per doctor per day
-  token  Int
-  status VisitStatus @default(CHECKED_IN)
+  token     Int
+  status    VisitStatus @default(CHECKED_IN)
+  // normal | priority | emergency — higher priority is called first
+  priority  String      @default("normal")
+  // new | follow_up — decided at check-in (drives the fee)
+  visitType String      @default("new")
 
   checkedInById     String?
   checkedInBy       User?     @relation("VisitCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
@@ -263,18 +311,60 @@ model Visit {
   respRate     Int?
 
   // Consultation
-  chiefComplaint String?
-  history        String?
-  examination    String?
-  diagnosis      String?
-  advice         String?
-  followUpDate   DateTime? // date only
+  chiefComplaint     String?
+  history            String?
+  examination        String?
+  diagnosis          String?
+  icdCode            String?
+  advice             String?
+  followUpDate       DateTime? // date only
+  // Follow-up desk: reminder sent / closed (booked, dismissed)
+  followUpRemindedAt DateTime?
+  followUpClosedAt   DateTime?
+  // Prescription link sent to the patient on WhatsApp
+  rxSentAt           DateTime?
 
   prescriptionItems PrescriptionItem[]
+  addenda           VisitAddendum[]
+  invoice           Invoice?
 
   @@index([clinicId, checkedInAt])
   @@index([clinicId, status])
   @@index([patientId, checkedInAt])
+  @@index([clinicId, followUpDate])
+}
+
+// Corrections after a visit is finalized. The original record is never edited.
+model VisitAddendum {
+  id        String   @id @default(cuid())
+  visitId   String
+  visit     Visit    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  text      String
+  createdAt DateTime @default(now())
+}
+
+// Reusable consultation presets. doctorId null = shared with every doctor.
+model ConsultTemplate {
+  id             String   @id @default(cuid())
+  clinicId       String
+  clinic         Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctorId       String?
+  doctor         Doctor?  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  createdById    String?
+  createdBy      User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  name           String
+  chiefComplaint String?
+  examination    String?
+  diagnosis      String?
+  icdCode        String?
+  advice         String?
+  // [{ medicine, dosage, frequency, duration, instructions }]
+  items          Json     @default("[]")
+  createdAt      DateTime @default(now())
+
+  @@index([clinicId, doctorId])
 }
 
 model PrescriptionItem {
@@ -304,4 +394,95 @@ model Conversation {
 
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
+}
+
+// ─── Billing ───────────────────────────────────────────────────────────────
+// All amounts are integers in paise (₹1 = 100).
+
+// Price list for chargeable services (dressing, ECG, injection…)
+model ServiceItem {
+  id       String  @id @default(cuid())
+  clinicId String
+  clinic   Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  name     String
+  price    Int
+  active   Boolean @default(true)
+
+  @@unique([clinicId, name])
+}
+
+model Invoice {
+  id             String   @id @default(cuid())
+  clinicId       String
+  clinic         Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  number         String // INV-000123, per hospital
+  patientId      String
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  visitId        String?  @unique
+  visit          Visit?   @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  // unpaid | partial | paid | refunded | void
+  status         String   @default("unpaid")
+  subtotal       Int      @default(0)
+  discount       Int      @default(0)
+  discountReason String?
+  total          Int      @default(0)
+  // Net of refunds
+  paid           Int      @default(0)
+  createdById    String?
+  createdBy      User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+
+  items    InvoiceItem[]
+  payments Payment[]
+
+  @@unique([clinicId, number])
+  @@index([clinicId, createdAt])
+  @@index([clinicId, status])
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  qty         Int     @default(1)
+  unitPrice   Int
+  amount      Int
+}
+
+model Payment {
+  id           String   @id @default(cuid())
+  invoiceId    String
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  // payment | refund (refund amounts are stored positive)
+  kind         String   @default("payment")
+  amount       Int
+  mode         String // cash | upi | card | other
+  reference    String?
+  reason       String?
+  receivedById String?
+  receivedBy   User?    @relation(fields: [receivedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([createdAt])
+}
+
+// ─── Audit trail ───────────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  clinicId  String
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  userId    String?
+  userName  String
+  // e.g. patient.create, visit.finalize, invoice.refund
+  action    String
+  entity    String
+  entityId  String?
+  summary   String
+  createdAt DateTime @default(now())
+
+  @@index([clinicId, createdAt])
+  @@index([clinicId, entity, entityId])
 }

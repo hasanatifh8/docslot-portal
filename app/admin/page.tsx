@@ -2,6 +2,7 @@ import { Building2, Hospital, ListChecks, LogOut } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requirePlatformAdmin } from "@/lib/platform-auth";
 import { platformLogoutAction } from "@/app/actions/platform";
+import { toggleHospital } from "@/app/actions/hospitals";
 import { Badge, Button, Card, CardBody, CardDescription, CardHeader, CardTitle, PageHeader } from "@/components/ui";
 import { Logo } from "@/components/brand";
 import { CreateHospitalForm } from "@/components/hospital-forms";
@@ -61,13 +62,22 @@ export default async function PlatformAdminPage() {
                     <Badge tone="slate" className="normal-case">
                       {h.code}
                     </Badge>
+                    {!h.active && <Badge tone="red">suspended</Badge>}
                   </div>
                   <div className="truncate text-xs text-slate-500">
                     Admin: {h.users.map((u) => u.email).join(", ") || "none"}
                   </div>
                 </div>
-                <div className="text-xs text-slate-500">
-                  {h._count.users} staff · {h._count.doctors} doctors · {h._count.patients} patients
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500">
+                    {h._count.users} staff · {h._count.doctors} doctors · {h._count.patients} patients
+                  </span>
+                  <form action={toggleHospital}>
+                    <input type="hidden" name="id" value={h.id} />
+                    <Button variant={h.active ? "danger" : "secondary"} size="sm">
+                      {h.active ? "Suspend" : "Reactivate"}
+                    </Button>
+                  </form>
                 </div>
               </li>
             ))}

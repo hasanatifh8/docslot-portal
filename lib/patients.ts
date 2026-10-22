@@ -45,3 +45,21 @@ export function patientMeta(p: { dob: Date | null; gender: string | null }) {
     .filter(Boolean)
     .join(" · ");
 }
+
+/** Shape the booking / check-in pickers expect for a preselected patient. */
+export function toPicked(
+  p: { id: string; name: string | null; uhid: string | null; waPhone: string; gender: string | null; dob: Date | null; relation: string | null; allergies: string | null },
+  lastDoctorId: string | null = null
+) {
+  return {
+    id: p.id,
+    name: p.name,
+    uhid: p.uhid,
+    waPhone: p.waPhone,
+    gender: p.gender,
+    age: ageFrom(p.dob),
+    relation: p.relation,
+    allergies: p.allergies,
+    lastDoctorId,
+  };
+}

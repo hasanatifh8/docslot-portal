@@ -11,11 +11,11 @@ import {
   generateSlots,
   upcomingWorkingDates,
   dayLabel,
-  localDateString,
   minToHHMM,
 } from "@/lib/slots";
 import { formatInTimeZone } from "date-fns-tz";
 import { ensureUhid } from "@/lib/patients";
+import { closedDates } from "@/lib/availability";
 
 // The booking flow is a small explicit state machine. State lives in the
 // Conversation row (step + draft JSON). Each inbound message advances it.
@@ -26,6 +26,8 @@ type Draft = {
   startAt?: string; // ISO
   endAt?: string; // ISO
   patientName?: string;
+  // Chosen family member (several patients can share one WhatsApp number)
+  patientId?: string;
   rescheduleOf?: string; // appointment id being moved
 };
 
@@ -133,16 +135,28 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
       if (!s || !e) return offerSlots(clinic, from, c, tz, draft);
       draft.startAt = s;
       draft.endAt = e;
-      const patient = await prisma.patient.findUnique({
-        where: { clinicId_waPhone: { clinicId: clinic.id, waPhone: from } },
-      });
-      if (patient?.name) {
-        draft.patientName = patient.name;
-        return askConfirm(clinic, from, c, tz, draft);
+      // Rescheduling keeps the same patient.
+      if (draft.patientId) return askConfirm(clinic, from, c, tz, draft);
+      return askWhichPatient(clinic, from, c, draft);
+    }
+
+    case "choose_cancel":
+      return doCancel(clinic, from, c, tz, body);
+
+    case "choose_reschedule":
+      return startReschedule(clinic, from, c, tz, body);
+
+    case "choose_patient": {
+      if (body === "new_person") {
+        await setState(from, "ask_name", draft);
+        await sendText(c, from, "What is the patient's full name?");
+        return;
       }
-      await setState(from, "ask_name", draft);
-      await sendText(c, from, "And your full name for the appointment?");
-      return;
+      const patient = await prisma.patient.findFirst({ where: { id: body, clinicId: clinic.id, waPhone: from } });
+      if (!patient) return askWhichPatient(clinic, from, c, draft);
+      draft.patientId = patient.id;
+      draft.patientName = patient.name ?? undefined;
+      return askConfirm(clinic, from, c, tz, draft);
     }
 
     case "ask_name": {
@@ -168,6 +182,30 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
 }
 
 // ─── Steps ─────────────────────────────────────────────────────────────────
+
+/** Families share numbers: ask who the booking is for (or take a new name). */
+async function askWhichPatient(clinic: any, from: string, c: WaCredentials, draft: Draft): Promise<void> {
+  const family = await prisma.patient.findMany({
+    where: { clinicId: clinic.id, waPhone: from, name: { not: null } },
+    orderBy: { createdAt: "asc" },
+    take: 9,
+  });
+  if (family.length === 0) {
+    await setState(from, "ask_name", draft);
+    await sendText(c, from, "And the patient's full name for the appointment?");
+    return;
+  }
+  await setState(from, "choose_patient", draft);
+  await sendList(c, from, {
+    header: "Who is the appointment for?",
+    body: "Pick the patient:",
+    button: "Choose patient",
+    rows: [
+      ...family.map((p) => ({ id: p.id, title: (p.name ?? "Patient").slice(0, 24), description: p.uhid ?? undefined })),
+      { id: "new_person", title: "Someone else", description: "Book for a new family member" },
+    ],
+  });
+}
 
 async function startBooking(
   clinic: any,
@@ -216,7 +254,7 @@ async function offerDays(
   });
   if (!doctor) return startBooking(clinic, from, c, tz, {});
 
-  const holidays = await clinicHolidays(clinic.id, tz);
+  const holidays = await closedDates(clinic.id, doctor.id, tz);
   const dates = upcomingWorkingDates({
     timezone: tz,
     workingHours: doctor.workingHours,
@@ -260,7 +298,7 @@ async function offerSlots(
     },
     select: { startAt: true, endAt: true },
   });
-  const holidays = await clinicHolidays(clinic.id, tz);
+  const holidays = await closedDates(clinic.id, doctor.id, tz);
 
   const slots = generateSlots({
     timezone: tz,
@@ -342,11 +380,15 @@ async function finalizeBooking(
     return;
   }
 
-  const patient = await prisma.patient.upsert({
-    where: { clinicId_waPhone: { clinicId: clinic.id, waPhone: from } },
-    create: { clinicId: clinic.id, waPhone: from, name: draft.patientName ?? contactName ?? null },
-    update: { name: draft.patientName ?? undefined },
-  });
+  const name = draft.patientName ?? contactName ?? null;
+  const patient =
+    (draft.patientId
+      ? await prisma.patient.findFirst({ where: { id: draft.patientId, clinicId: clinic.id, waPhone: from } })
+      : null) ??
+    (name
+      ? await prisma.patient.findFirst({ where: { clinicId: clinic.id, waPhone: from, name: { equals: name, mode: "insensitive" } } })
+      : null) ??
+    (await prisma.patient.create({ data: { clinicId: clinic.id, waPhone: from, name, relation: null } }));
   await ensureUhid(patient);
 
   if (draft.rescheduleOf) {
@@ -384,43 +426,64 @@ async function finalizeBooking(
   await sendText(c, from, confirmText);
 }
 
-async function doCancel(clinic: any, from: string, c: WaCredentials, tz: string): Promise<void> {
-  const patient = await prisma.patient.findUnique({
-    where: { clinicId_waPhone: { clinicId: clinic.id, waPhone: from } },
+/** Upcoming bookings for everyone on this number; asks which one when there are several. */
+async function pickAppointment(
+  clinic: any,
+  from: string,
+  c: WaCredentials,
+  tz: string,
+  action: "cancel" | "reschedule",
+  chosenId?: string
+) {
+  const upcoming = await prisma.appointment.findMany({
+    where: { clinicId: clinic.id, patient: { waPhone: from }, status: "booked", startAt: { gt: new Date() } },
+    orderBy: { startAt: "asc" },
+    include: { doctor: true, patient: true },
+    take: 9,
   });
-  const next = patient
-    ? await prisma.appointment.findFirst({
-        where: { patientId: patient.id, status: "booked", startAt: { gt: new Date() } },
-        orderBy: { startAt: "asc" },
-        include: { doctor: true },
-      })
-    : null;
-
-  if (!next) {
-    await sendText(c, from, "You have no upcoming appointments to cancel.");
-    return;
+  if (chosenId) return upcoming.find((a) => a.id === chosenId) ?? null;
+  if (upcoming.length === 0) {
+    await sendText(
+      c,
+      from,
+      action === "cancel" ? "You have no upcoming appointments to cancel." : "You have no upcoming appointment to reschedule. Send *hi* to book one."
+    );
+    return null;
   }
-  await prisma.appointment.update({ where: { id: next.id }, data: { status: "cancelled" } });
-  await prisma.reminder.deleteMany({ where: { appointmentId: next.id, sentAt: null } });
-  const when = formatInTimeZone(next.startAt, tz, "EEE, d MMM · h:mm a");
-  await sendText(c, from, `Cancelled your appointment with ${next.doctor.name} on ${when}.\nSend *hi* to book a new one.`);
+  if (upcoming.length === 1) return upcoming[0];
+  await setState(from, action === "cancel" ? "choose_cancel" : "choose_reschedule", {});
+  await sendList(c, from, {
+    header: action === "cancel" ? "Cancel which appointment?" : "Reschedule which appointment?",
+    body: "Your family's upcoming appointments:",
+    button: "Choose",
+    rows: upcoming.map((a) => ({
+      id: a.id,
+      title: (a.patient.name ?? "Patient").slice(0, 24),
+      description: `${a.doctor.name} · ${formatInTimeZone(a.startAt, tz, "EEE d MMM, h:mm a")}`.slice(0, 72),
+    })),
+  });
+  return null;
 }
 
-async function startReschedule(clinic: any, from: string, c: WaCredentials, tz: string): Promise<void> {
-  const patient = await prisma.patient.findUnique({
-    where: { clinicId_waPhone: { clinicId: clinic.id, waPhone: from } },
-  });
-  const next = patient
-    ? await prisma.appointment.findFirst({
-        where: { patientId: patient.id, status: "booked", startAt: { gt: new Date() } },
-        orderBy: { startAt: "asc" },
-      })
-    : null;
-  if (!next) {
-    await sendText(c, from, "You have no upcoming appointment to reschedule. Send *hi* to book one.");
-    return;
-  }
-  const draft: Draft = { doctorId: next.doctorId, rescheduleOf: next.id, patientName: patient?.name ?? undefined };
+async function doCancel(clinic: any, from: string, c: WaCredentials, tz: string, chosenId?: string): Promise<void> {
+  const next = await pickAppointment(clinic, from, c, tz, "cancel", chosenId);
+  if (!next) return;
+  await prisma.appointment.update({ where: { id: next.id }, data: { status: "cancelled" } });
+  await prisma.reminder.deleteMany({ where: { appointmentId: next.id, sentAt: null } });
+  await setState(from, "done", {});
+  const when = formatInTimeZone(next.startAt, tz, "EEE, d MMM · h:mm a");
+  await sendText(c, from, `Cancelled ${next.patient.name ? `${next.patient.name}'s` : "your"} appointment with ${next.doctor.name} on ${when}.\nSend *hi* to book a new one.`);
+}
+
+async function startReschedule(clinic: any, from: string, c: WaCredentials, tz: string, chosenId?: string): Promise<void> {
+  const next = await pickAppointment(clinic, from, c, tz, "reschedule", chosenId);
+  if (!next) return;
+  const draft: Draft = {
+    doctorId: next.doctorId,
+    rescheduleOf: next.id,
+    patientId: next.patientId,
+    patientName: next.patient.name ?? undefined,
+  };
   await offerDays(clinic, from, c, tz, draft);
 }
 
@@ -434,9 +497,5 @@ function safeParse(s: string): Draft {
   }
 }
 
-async function clinicHolidays(clinicId: string, tz: string): Promise<string[]> {
-  const rows = await prisma.holiday.findMany({ where: { clinicId } });
-  return rows.map((h) => localDateString(h.date, tz));
-}
 
 export { minToHHMM };

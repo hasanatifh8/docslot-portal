@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { hashPassword, requirePermission } from "@/lib/auth";
-import { ROLES } from "@/lib/rbac";
+import { ROLES, ROLE_LABELS } from "@/lib/rbac";
+import { audit } from "@/lib/audit";
 
 export type StaffFormState = { error?: string; ok?: boolean; savedAt?: number };
 
@@ -48,8 +49,10 @@ export async function addStaff(_prev: StaffFormState, formData: FormData): Promi
       role: d.role,
       doctorId: d.role === "doctor" ? d.doctorId : null,
       passwordHash: await hashPassword(d.password),
+      mustChangePassword: true,
     },
   });
+  await audit(admin, "staff.create", { entity: "user" }, `Added ${d.name} (${d.email}) as ${ROLE_LABELS[d.role]}`);
   revalidatePath("/staff");
   return { ok: true, savedAt: Date.now() };
 }
@@ -71,6 +74,7 @@ export async function updateStaffRole(_prev: StaffFormState, formData: FormData)
     where: { id },
     data: { role, doctorId: role === "doctor" ? doctorId : null },
   });
+  await audit(admin, "staff.role", { entity: "user", id }, `${target.name}: role ${target.role} → ${role}`);
   revalidatePath("/staff");
   return { ok: true };
 }
@@ -85,6 +89,7 @@ export async function toggleStaffActive(formData: FormData) {
     // Deactivating signs them out everywhere.
     ...(target.active ? [prisma.session.deleteMany({ where: { userId: id } })] : []),
   ]);
+  await audit(admin, target.active ? "staff.deactivate" : "staff.reactivate", { entity: "user", id }, `${target.active ? "Deactivated" : "Reactivated"} ${target.name}`);
   revalidatePath("/staff");
 }
 
@@ -95,6 +100,10 @@ export async function resetStaffPassword(_prev: StaffFormState, formData: FormDa
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
   const target = await prisma.user.findFirst({ where: { id, clinicId: admin.clinicId } });
   if (!target) return { error: "User not found." };
-  await prisma.user.update({ where: { id }, data: { passwordHash: await hashPassword(password) } });
+  await prisma.$transaction([
+    prisma.user.update({ where: { id }, data: { passwordHash: await hashPassword(password), mustChangePassword: true } }),
+    prisma.session.deleteMany({ where: { userId: id } }),
+  ]);
+  await audit(admin, "staff.password_reset", { entity: "user", id }, `Reset password for ${target.name}`);
   return { ok: true };
 }

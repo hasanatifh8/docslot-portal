@@ -1,6 +1,11 @@
 import Link from "next/link";
 import {
+  AlertTriangle,
   CalendarClock,
+  CalendarOff,
+  CalendarSync,
+  IndianRupee,
+  Siren,
   CalendarHeart,
   ClipboardCheck,
   ClipboardPlus,
@@ -15,7 +20,8 @@ import { dayRange, fmt } from "@/lib/format";
 import { setAppointmentStatus } from "@/app/actions/appointments";
 import { checkInAppointment } from "@/app/actions/opd";
 import { formatInTimeZone } from "date-fns-tz";
-import type { VisitStatus } from "@/lib/encounter";
+import { OPEN_STATUSES, type VisitStatus } from "@/lib/encounter";
+import { rupees } from "@/lib/money";
 import {
   Badge,
   Button,
@@ -54,9 +60,34 @@ export default async function DashboardPage() {
     prisma.patient.count({ where: { clinicId: clinic.id } }),
   ]);
 
+  const todayDate = new Date(`${dayRange(tz).day}T00:00:00Z`);
+  const [dueBills, overdueFollowUps, emergencies, onLeave, longWaits] = await Promise.all([
+    can(user.role, "billing.view")
+      ? prisma.invoice.findMany({ where: { clinicId: clinic.id, status: { in: ["unpaid", "partial"] }, createdAt: { gte: dayStart, lt: dayEnd } }, select: { total: true, paid: true } })
+      : Promise.resolve([]),
+    can(user.role, "followups.view")
+      ? prisma.visit.count({
+          where: { clinicId: clinic.id, status: "COMPLETED", followUpClosedAt: null, followUpDate: { lte: todayDate, gte: new Date(todayDate.getTime() - 30 * 86400_000) }, ...mine },
+        })
+      : Promise.resolve(0),
+    prisma.visit.count({ where: { clinicId: clinic.id, priority: "emergency", status: { in: OPEN_STATUSES }, ...mine } }),
+    prisma.doctorLeave.findMany({ where: { doctor: { clinicId: clinic.id }, startDate: { lte: todayDate }, endDate: { gte: todayDate } }, include: { doctor: { select: { name: true } } } }),
+    prisma.visit.count({
+      where: { clinicId: clinic.id, status: { in: ["CHECKED_IN", "TRIAGE_IN_PROGRESS", "TRIAGE_COMPLETED"] }, checkedInAt: { gte: dayStart, lt: new Date(new Date().getTime() - 45 * 60_000) }, ...mine },
+    }),
+  ]);
+  const dueAmount = dueBills.reduce((s, i) => s + i.total - i.paid, 0);
+  const alerts = [
+    emergencies > 0 && { href: "/opd", icon: Siren, tone: "bg-rose-600 text-white", text: `${emergencies} emergency patient${emergencies > 1 ? "s" : ""} waiting` },
+    longWaits > 0 && { href: "/opd", icon: AlertTriangle, tone: "bg-amber-50 text-amber-900 ring-1 ring-amber-200", text: `${longWaits} waiting over 45 min` },
+    dueBills.length > 0 && { href: "/billing", icon: IndianRupee, tone: "bg-white text-slate-800 ring-1 ring-slate-200", text: `${rupees(dueAmount)} to collect · ${dueBills.length} bill${dueBills.length > 1 ? "s" : ""}` },
+    overdueFollowUps > 0 && { href: "/follow-ups", icon: CalendarSync, tone: "bg-white text-slate-800 ring-1 ring-slate-200", text: `${overdueFollowUps} follow-up${overdueFollowUps > 1 ? "s" : ""} due` },
+    onLeave.length > 0 && { href: "/doctors", icon: CalendarOff, tone: "bg-white text-slate-800 ring-1 ring-slate-200", text: `On leave: ${onLeave.map((l) => l.doctor.name).join(", ")}` },
+  ].filter(Boolean) as { href: string; icon: typeof Siren; tone: string; text: string }[];
+
   const visits = (s: VisitStatus) => visitCounts.find((c) => c.status === s)?._count ?? 0;
   const booked = appts.filter((a) => a.status === "booked").length;
-  const now = Date.now();
+  const now = new Date().getTime();
 
   return (
     <div>
@@ -71,6 +102,15 @@ export default async function DashboardPage() {
             <p className="mt-0.5 text-sm text-brand-100/90">{clinic.name}</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {can(user.role, "appointments.manage") && (
+              <Link
+                href="/appointments/new"
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-white/10 px-4 text-sm font-medium text-white ring-1 ring-white/25 ring-inset hover:bg-white/20"
+              >
+                <CalendarHeart className="h-4 w-4" />
+                Book
+              </Link>
+            )}
             {can(user.role, "patients.edit") && (
               <Link
                 href="/patients/new"
@@ -91,6 +131,16 @@ export default async function DashboardPage() {
         </div>
         <EcgLine animated className="relative mt-4 h-8 w-full text-accent-500" />
       </section>
+
+      {alerts.length > 0 && (
+        <div className="mb-5 flex flex-wrap gap-2">
+          {alerts.map((a) => (
+            <Link key={a.text} href={a.href} className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium shadow-sm transition hover:-translate-y-0.5 ${a.tone}`}>
+              <a.icon className="h-4 w-4" /> {a.text} →
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat icon={CalendarHeart} label="Appointments" value={booked} sub="still booked today" tone="violet" />

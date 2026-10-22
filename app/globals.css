@@ -13,6 +13,7 @@
   --color-brand-700: #0e6860;
   --color-brand-800: #10544f;
   --color-brand-900: #0f3f3c;
+  --color-brand-950: #072523;
 
   /* Logo orange — used sparingly for highlights */
   --color-accent-50: #fff4ec;
@@ -23,7 +24,7 @@
   /* Soft mint-white app canvas */
   --color-canvas: #f2f7f7;
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+  --font-sans: var(--font-app), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Arial, sans-serif;
 }
 
@@ -34,7 +35,20 @@
   }
   body {
     font-family: var(--font-sans);
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  /* Visible keyboard focus everywhere — the front desk lives on the keyboard. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: none;
+  }
+  /* Numbers line up in tables, tokens and money. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
   ::selection {
     background: var(--color-brand-200);
@@ -96,6 +110,62 @@
   .ecg-line {
     animation: none;
     stroke-dasharray: none;
+  }
+}
+
+/* ─── Micro-interactions ─────────────────────────────────────────────────── */
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+.toast-in {
+  animation: toast-in 0.18s ease-out;
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+.dialog-in {
+  animation: dialog-in 0.14s ease-out;
+}
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+.step-in {
+  animation: step-in 0.2s ease-out;
+}
+/* Gentle attention pulse for critical vitals / allergy hits */
+@keyframes alert-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(225 29 72 / 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgb(225 29 72 / 0);
+  }
+}
+.alert-pulse {
+  animation: alert-pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast-in,
+  .dialog-in,
+  .step-in,
+  .alert-pulse {
+    animation: none;
+  }
+}
+@media print {
+  .no-print {
+    display: none !important;
   }
 }
 

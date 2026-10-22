@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
+import { audit } from "@/lib/audit";
+import { toPaise, rupees } from "@/lib/money";
+import { fmt, parseDateOnly } from "@/lib/format";
+import { notifyText } from "@/lib/notify";
 
 // ─── Doctors ───────────────────────────────────────────────────────────────
 
@@ -20,6 +24,10 @@ const doctorSchema = z.object({
   registrationNo: optText,
   slotMinutes: z.coerce.number().int().min(5).max(240),
   bufferMinutes: z.coerce.number().int().min(0).max(120),
+  room: optText,
+  consultFee: z.string().optional().transform((s) => toPaise(s || "0") ?? 0),
+  followUpFee: z.string().optional().transform((s) => toPaise(s || "0") ?? 0),
+  followUpDays: z.coerce.number().int().min(0).max(60).default(7),
 });
 
 export async function addDoctor(formData: FormData) {
@@ -28,8 +36,87 @@ export async function addDoctor(formData: FormData) {
   if (d.departmentId && !(await prisma.department.findFirst({ where: { id: d.departmentId, clinicId: user.clinicId } }))) {
     d.departmentId = null;
   }
-  await prisma.doctor.create({ data: { ...d, clinicId: user.clinicId } });
+  const doc = await prisma.doctor.create({ data: { ...d, clinicId: user.clinicId } });
+  await audit(user, "doctor.create", { entity: "doctor", id: doc.id }, `Added ${d.name} (${d.specialty}), fee ${rupees(d.consultFee)}`);
   revalidatePath("/doctors");
+}
+
+/** Room, fees and follow-up window — what the front desk and billing use. */
+export async function updateDoctorPractice(formData: FormData) {
+  const user = await requirePermission("doctors.manage", { throwOnDeny: true });
+  const id = String(formData.get("id"));
+  const doctor = await prisma.doctor.findFirst({ where: { id, clinicId: user.clinicId } });
+  if (!doctor) return;
+  const consultFee = toPaise(String(formData.get("consultFee") ?? "")) ?? doctor.consultFee;
+  const followUpFee = toPaise(String(formData.get("followUpFee") ?? "")) ?? doctor.followUpFee;
+  const followUpDays = Math.max(0, Math.min(60, parseInt(String(formData.get("followUpDays") ?? ""), 10) || 0));
+  const room = String(formData.get("room") ?? "").trim() || null;
+  await prisma.doctor.update({ where: { id }, data: { consultFee, followUpFee, followUpDays, room } });
+  await audit(
+    user,
+    "doctor.update",
+    { entity: "doctor", id },
+    `${doctor.name}: fee ${rupees(doctor.consultFee)} → ${rupees(consultFee)}, follow-up ${rupees(followUpFee)} within ${followUpDays} days, room ${room ?? "—"}`
+  );
+  revalidatePath("/doctors");
+}
+
+// ─── Doctor leave ──────────────────────────────────────────────────────────
+
+export async function addLeave(formData: FormData) {
+  const user = await requirePermission("doctors.manage", { throwOnDeny: true });
+  const doctorId = String(formData.get("doctorId"));
+  const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId: user.clinicId } });
+  const start = parseDateOnly(String(formData.get("startDate") ?? ""));
+  const end = parseDateOnly(String(formData.get("endDate") ?? "")) ?? start;
+  if (!doctor || !start || !end || end < start) return;
+  const reason = String(formData.get("reason") ?? "").trim() || null;
+  await prisma.doctorLeave.create({ data: { doctorId, startDate: start, endDate: end, reason } });
+  await audit(user, "doctor.leave_add", { entity: "doctor", id: doctorId }, `${doctor.name} on leave ${fmt(start, "UTC", "d MMM")}–${fmt(end, "UTC", "d MMM yyyy")}${reason ? ` (${reason})` : ""}`);
+  revalidatePath("/doctors");
+}
+
+export async function deleteLeave(formData: FormData) {
+  const user = await requirePermission("doctors.manage", { throwOnDeny: true });
+  const id = String(formData.get("id"));
+  const leave = await prisma.doctorLeave.findFirst({ where: { id, doctor: { clinicId: user.clinicId } }, include: { doctor: true } });
+  if (!leave) return;
+  await prisma.doctorLeave.delete({ where: { id } });
+  await audit(user, "doctor.leave_remove", { entity: "doctor", id: leave.doctorId }, `${leave.doctor.name}: leave ${fmt(leave.startDate, "UTC", "d MMM")} removed`);
+  revalidatePath("/doctors");
+}
+
+/** Cancel every booking that falls inside a leave and tell each patient on WhatsApp. */
+export async function cancelLeaveBookings(formData: FormData) {
+  const user = await requirePermission("appointments.manage", { throwOnDeny: true });
+  const id = String(formData.get("id"));
+  const leave = await prisma.doctorLeave.findFirst({ where: { id, doctor: { clinicId: user.clinicId } }, include: { doctor: true } });
+  if (!leave) return;
+  const tz = user.clinic.timezone;
+  const appts = await prisma.appointment.findMany({
+    where: {
+      doctorId: leave.doctorId,
+      status: "booked",
+      startAt: { gte: new Date(leave.startDate.getTime() - 14 * 3600_000), lt: new Date(leave.endDate.getTime() + 38 * 3600_000) },
+    },
+    include: { patient: true },
+  });
+  const inLeave = appts.filter((a) => {
+    const d = fmt(a.startAt, tz, "yyyy-MM-dd");
+    return d >= leave.startDate.toISOString().slice(0, 10) && d <= leave.endDate.toISOString().slice(0, 10);
+  });
+  for (const a of inLeave) {
+    await prisma.appointment.update({ where: { id: a.id }, data: { status: "cancelled" } });
+    await prisma.reminder.deleteMany({ where: { appointmentId: a.id, sentAt: null } });
+    await notifyText(
+      user.clinic,
+      a.patient.waPhone,
+      `🙏 ${user.clinic.name}\n\n${leave.doctor.name} is unavailable on ${fmt(a.startAt, tz, "EEE, d MMM")}, so ${a.patient.name ? `${a.patient.name}'s` : "your"} appointment at ${fmt(a.startAt, tz, "h:mm a")} has been cancelled. Sorry for the inconvenience.\n\nReply *hi* to book a new time.`
+    );
+  }
+  await audit(user, "doctor.leave_cancel_bookings", { entity: "doctor", id: leave.doctorId }, `${leave.doctor.name}: cancelled ${inLeave.length} booking(s) during leave and notified patients`);
+  revalidatePath("/doctors");
+  revalidatePath("/appointments");
 }
 
 export async function setDoctorDepartment(formData: FormData) {
@@ -69,13 +156,21 @@ export async function toggleDoctor(formData: FormData) {
   const doctor = await prisma.doctor.findFirst({ where: { id, clinicId: user.clinicId } });
   if (!doctor) return;
   await prisma.doctor.update({ where: { id }, data: { active: !doctor.active } });
+  await audit(user, doctor.active ? "doctor.deactivate" : "doctor.activate", { entity: "doctor", id }, `${doctor.active ? "Deactivated" : "Activated"} ${doctor.name}`);
   revalidatePath("/doctors");
 }
 
 export async function deleteDoctor(formData: FormData) {
   const user = await requirePermission("doctors.manage", { throwOnDeny: true });
   const id = String(formData.get("id"));
+  // Deleting cascades to visits and prescriptions — only allowed for a doctor with no history.
+  const used = await prisma.doctor.findFirst({
+    where: { id, clinicId: user.clinicId, OR: [{ visits: { some: {} } }, { appointments: { some: {} } }] },
+  });
+  if (used) return;
+  const gone = await prisma.doctor.findFirst({ where: { id, clinicId: user.clinicId } });
   await prisma.doctor.deleteMany({ where: { id, clinicId: user.clinicId } });
+  if (gone) await audit(user, "doctor.delete", { entity: "doctor", id }, `Deleted ${gone.name}`);
   revalidatePath("/doctors");
 }
 
@@ -121,6 +216,7 @@ const clinicSchema = z.object({
   mapsUrl: z.string().optional(),
   prepInstructions: z.string().optional(),
   reminderOffsets: z.string().regex(/^(\d+)(,\s*\d+)*$/, "Comma-separated minutes, e.g. 1440,120"),
+  phone: z.string().optional(),
 });
 
 export async function updateClinic(formData: FormData) {
@@ -136,8 +232,10 @@ export async function updateClinic(formData: FormData) {
       mapsUrl: d.mapsUrl || null,
       prepInstructions: d.prepInstructions || null,
       reminderOffsets: d.reminderOffsets.replace(/\s/g, ""),
+      phone: d.phone?.trim() || null,
     },
   });
+  await audit(user, "settings.update", { entity: "clinic", id: user.clinicId }, "Updated hospital details");
   revalidatePath("/settings");
 }
 
@@ -145,13 +243,15 @@ export async function connectOwnNumber(formData: FormData) {
   const user = await requirePermission("settings.manage", { throwOnDeny: true });
   const phoneNumberId = String(formData.get("phoneNumberId") || "").trim();
   const token = String(formData.get("token") || "").trim();
+  // Blank token = keep the saved one; clearing the phone number ID disconnects.
   await prisma.clinic.update({
     where: { id: user.clinicId },
     data: {
       whatsappPhoneNumberId: phoneNumberId || null,
-      whatsappToken: token || null,
+      ...(token || !phoneNumberId ? { whatsappToken: phoneNumberId ? token : null } : {}),
     },
   });
+  await audit(user, "settings.whatsapp", { entity: "clinic", id: user.clinicId }, phoneNumberId ? "Updated own WhatsApp number" : "Disconnected own WhatsApp number");
   revalidatePath("/settings");
 }
 

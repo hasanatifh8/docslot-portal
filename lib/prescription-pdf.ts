@@ -36,6 +36,7 @@ export type PrescriptionData = {
     chiefComplaint: string | null;
     examination: string | null;
     diagnosis: string | null;
+    icdCode?: string | null;
     advice: string | null;
     followUpDate: Date | null;
   };
@@ -186,7 +187,7 @@ export async function renderPrescriptionPdf(d: PrescriptionData): Promise<Uint8A
 
   w.field("Complaint", v.chiefComplaint);
   w.field("Findings", v.examination);
-  w.field("Diagnosis", v.diagnosis);
+  w.field("Diagnosis", v.diagnosis ? `${v.diagnosis}${v.icdCode ? `  (ICD-10 ${v.icdCode})` : ""}` : null);
   w.gap(6);
 
   // Rx table

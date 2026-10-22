@@ -1,18 +1,15 @@
 import { UserRoundPlus } from "lucide-react";
 import { requirePermission } from "@/lib/auth";
-import { Card, CardBody, PageHeader } from "@/components/ui";
-import { PatientForm } from "@/components/patient-form";
+import { PageHeader } from "@/components/ui";
+import { RegistrationWizard } from "@/components/registration-wizard";
 
-export default async function NewPatientPage() {
+export default async function NewPatientPage({ searchParams }: PageProps<"/patients/new">) {
   await requirePermission("patients.edit");
+  const phone = String((await searchParams).phone ?? "");
   return (
     <div>
-      <PageHeader icon={UserRoundPlus} title="Register patient" description="A UHID is assigned automatically" />
-      <Card>
-        <CardBody>
-          <PatientForm />
-        </CardBody>
-      </Card>
+      <PageHeader icon={UserRoundPlus} title="Register patient" description="Five quick steps · a UHID is assigned automatically" />
+      <RegistrationWizard initialPhone={phone} />
     </div>
   );
 }

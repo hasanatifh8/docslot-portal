@@ -47,6 +47,20 @@ export function sendText(creds: WaCredentials, to: string, text: string) {
   });
 }
 
+/** PDF (or other file) by public URL, e.g. the signed prescription link. */
+export function sendDocument(
+  creds: WaCredentials,
+  to: string,
+  doc: { link: string; filename: string; caption?: string }
+) {
+  return post(creds, {
+    messaging_product: "whatsapp",
+    to,
+    type: "document",
+    document: { link: doc.link, filename: doc.filename, caption: doc.caption },
+  });
+}
+
 /**
  * Interactive list — best UX for choosing a doctor or a slot.
  * `rows` max 10 per section; `title` max 24 chars; `description` max 72.

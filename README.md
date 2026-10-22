@@ -1,17 +1,22 @@
 # DocSlot HMS
 
-Hospital management for small and mid-size hospitals: patient registration
-(UHID), OPD queue with tokens, vitals, consultation notes and printable
-prescriptions, departments, role-based staff logins — plus the original
-WhatsApp booking bot, so patients can still book, reschedule and get reminders
-entirely in chat.
+Hospital management for small and mid-size hospitals: guided patient
+registration (UHID, families sharing one phone), appointment booking with live
+slots, OPD check-in with tokens and a waiting-room display, triage with live
+vital-sign checks, a fast doctor consultation screen (templates, dictation,
+drug & ICD-10 auto-complete, allergy alerts, auto summary, signed PDF),
+billing with receipts and day-end cash reports, follow-ups, reports, audit
+log — plus the WhatsApp booking bot, so patients can still book, reschedule
+and get reminders entirely in chat.
+
+**Screen-by-screen UX guide:** [`docs/ux-design.md`](docs/ux-design.md).
 
 ### Roles
 
 | Role | Can do |
 |---|---|
-| Administrator | Everything, incl. doctors & departments, staff, settings |
-| Receptionist | Register/edit patients, book appointments, OPD check-in |
+| Administrator | Everything, incl. discounts/refunds, reports, audit log, doctors & departments, staff, settings |
+| Receptionist | Register/edit patients, book appointments, OPD check-in, collect payments |
 | Junior doctor | Triage: capture vitals and hand off to the senior doctor |
 | Nurse | Register/edit patients, OPD check-in, triage |
 | Senior doctor | Consult, prescribe and finalize (own patients only) |
@@ -50,9 +55,11 @@ Demo logins (password `demo1234`): `demo@docslot.test` (admin),
 `reception@docslot.test`, `nurse@docslot.test`, `jr.rao@docslot.test`,
 `dr.mehra@docslot.test`.
 
-**Upgrading an existing DocSlot database:** `npm run db:push` (additive —
-existing users become admins), then `npx tsx scripts/backfill-uhid.ts` to give
-existing patients a UHID.
+**Upgrading an existing DocSlot database:** `npm run db:push` (adds tables
+and columns; drops the one-patient-per-phone unique index so families can
+share a number), then `npx tsx scripts/backfill-uhid.ts` to give existing
+patients a UHID. Existing doctors get a default ₹500 consultation fee — set
+real fees on the Doctors page.
 
 Without WhatsApp credentials the app runs fine — outbound messages are
 logged to the console instead of sent, so you can exercise the portal and

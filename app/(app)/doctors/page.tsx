@@ -10,8 +10,15 @@ import {
   setDoctorDepartment,
   addDepartment,
   deleteDepartment,
+  updateDoctorPractice,
+  addLeave,
+  deleteLeave,
+  cancelLeaveBookings,
 } from "@/app/actions/config";
-import { BadgePlus, Building2, Stethoscope, Trash2 } from "lucide-react";
+import { BadgePlus, Building2, CalendarOff, IndianRupee, Stethoscope, Trash2 } from "lucide-react";
+import { dateOnlyValue, fmt } from "@/lib/format";
+import { fromZonedTime } from "date-fns-tz";
+import { rupeeInput, rupees } from "@/lib/money";
 import {
   Badge,
   Button,
@@ -32,7 +39,12 @@ export default async function DoctorsPage() {
     prisma.doctor.findMany({
       where: { clinicId: user.clinicId },
       orderBy: { createdAt: "asc" },
-      include: { workingHours: true, department: true },
+      include: {
+        workingHours: true,
+        department: true,
+        leaves: { where: { endDate: { gte: new Date(new Date().getTime() - 86400_000) } }, orderBy: { startDate: "asc" } },
+        _count: { select: { visits: true, appointments: true } },
+      },
     }),
     prisma.department.findMany({
       where: { clinicId: user.clinicId },
@@ -40,6 +52,24 @@ export default async function DoctorsPage() {
       include: { _count: { select: { doctors: true } } },
     }),
   ]);
+  const tz = user.clinic.timezone;
+  // Bookings that fall inside each upcoming leave, so the admin can clear them in one go.
+  const leaveBookings = new Map<string, number>();
+  for (const d of doctors) {
+    for (const l of d.leaves) {
+      const n = await prisma.appointment.count({
+        where: {
+          doctorId: d.id,
+          status: "booked",
+          startAt: {
+            gte: fromZonedTime(`${dateOnlyValue(l.startDate)}T00:00:00`, tz),
+            lt: new Date(fromZonedTime(`${dateOnlyValue(l.endDate)}T00:00:00`, tz).getTime() + 24 * 3600_000),
+          },
+        },
+      });
+      leaveBookings.set(l.id, n);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -114,6 +144,18 @@ export default async function DoctorsPage() {
             <Field label="Buffer" hint="Gap between appointments, minutes">
               <Input name="bufferMinutes" type="number" defaultValue={0} min={0} max={120} />
             </Field>
+            <Field label="Consultation fee (₹)" hint="New visit">
+              <Input name="consultFee" inputMode="decimal" defaultValue="500" />
+            </Field>
+            <Field label="Follow-up fee (₹)" hint="Within the follow-up window">
+              <Input name="followUpFee" inputMode="decimal" defaultValue="0" />
+            </Field>
+            <Field label="Follow-up window" hint="Days after a visit that count as follow-up">
+              <Input name="followUpDays" type="number" defaultValue={7} min={0} max={60} />
+            </Field>
+            <Field label="Room / cabin" hint="Shown on the token display">
+              <Input name="room" placeholder="3" />
+            </Field>
             <div className="sm:col-span-2">
               <Button type="submit">Add doctor</Button>
             </div>
@@ -135,7 +177,8 @@ export default async function DoctorsPage() {
                   {d.department ? `${d.department.name} · ` : ""}
                   {d.specialty}
                   {d.qualification ? ` · ${d.qualification}` : ""} · {d.slotMinutes}-min slots
-                  {d.bufferMinutes ? ` · ${d.bufferMinutes}-min buffer` : ""}
+                  {d.bufferMinutes ? ` · ${d.bufferMinutes}-min buffer` : ""} · fee {rupees(d.consultFee)}
+                  {d.room ? ` · Room ${d.room}` : ""}
                 </p>
               </div>
               <div className="flex flex-wrap justify-end gap-2">
@@ -159,15 +202,91 @@ export default async function DoctorsPage() {
                     {d.active ? "Deactivate" : "Activate"}
                   </Button>
                 </form>
-                <form action={deleteDoctor}>
-                  <input type="hidden" name="id" value={d.id} />
-                  <Button variant="danger" size="sm">
-                    Delete
-                  </Button>
-                </form>
+                {d._count.visits + d._count.appointments === 0 && (
+                  <form action={deleteDoctor}>
+                    <input type="hidden" name="id" value={d.id} />
+                    <Button variant="danger" size="sm">
+                      Delete
+                    </Button>
+                  </form>
+                )}
               </div>
             </CardHeader>
-            <CardBody>
+            <CardBody className="space-y-6">
+              <form action={updateDoctorPractice} className="flex flex-wrap items-end gap-3 rounded-xl bg-slate-50 p-3">
+                <input type="hidden" name="id" value={d.id} />
+                <IndianRupee className="mb-2.5 h-4 w-4 text-brand-500" />
+                <Field label="Fee (₹)" className="w-24">
+                  <Input name="consultFee" defaultValue={rupeeInput(d.consultFee)} inputMode="decimal" className="h-9" />
+                </Field>
+                <Field label="Follow-up fee (₹)" className="w-28">
+                  <Input name="followUpFee" defaultValue={rupeeInput(d.followUpFee)} inputMode="decimal" className="h-9" />
+                </Field>
+                <Field label="Follow-up within (days)" className="w-36">
+                  <Input name="followUpDays" type="number" defaultValue={d.followUpDays} min={0} max={60} className="h-9" />
+                </Field>
+                <Field label="Room" className="w-20">
+                  <Input name="room" defaultValue={d.room ?? ""} className="h-9" />
+                </Field>
+                <Button variant="secondary" size="sm" className="mb-0.5">
+                  Save
+                </Button>
+              </form>
+
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                  <CalendarOff className="h-3.5 w-3.5" /> Leave
+                </div>
+                {d.leaves.length > 0 && (
+                  <ul className="mb-3 space-y-2">
+                    {d.leaves.map((l) => {
+                      const n = leaveBookings.get(l.id) ?? 0;
+                      return (
+                        <li key={l.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-amber-50/70 px-3 py-2 text-sm ring-1 ring-amber-200/70">
+                          <span className="font-medium text-amber-900">
+                            {fmt(l.startDate, "UTC", "d MMM")}
+                            {l.endDate.getTime() !== l.startDate.getTime() && ` – ${fmt(l.endDate, "UTC", "d MMM yyyy")}`}
+                          </span>
+                          {l.reason && <span className="text-xs text-amber-800">· {l.reason}</span>}
+                          {n > 0 ? (
+                            <form action={cancelLeaveBookings} className="ml-auto">
+                              <input type="hidden" name="id" value={l.id} />
+                              <Button variant="danger" size="sm">
+                                Cancel {n} booking{n > 1 ? "s" : ""} & notify patients
+                              </Button>
+                            </form>
+                          ) : (
+                            <span className="ml-auto text-xs text-amber-800/70">No bookings affected</span>
+                          )}
+                          <form action={deleteLeave}>
+                            <input type="hidden" name="id" value={l.id} />
+                            <button className="flex h-7 w-7 items-center justify-center rounded-lg text-amber-700/60 hover:bg-white hover:text-rose-600" aria-label="Remove leave">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </form>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <form action={addLeave} className="flex flex-wrap items-end gap-2">
+                  <input type="hidden" name="doctorId" value={d.id} />
+                  <Field label="From" className="w-40">
+                    <Input type="date" name="startDate" required className="h-9" />
+                  </Field>
+                  <Field label="To" className="w-40">
+                    <Input type="date" name="endDate" className="h-9" />
+                  </Field>
+                  <Field label="Reason" className="min-w-40 flex-1">
+                    <Input name="reason" placeholder="Conference, personal…" className="h-9" />
+                  </Field>
+                  <Button variant="secondary" size="sm" className="mb-0.5">
+                    Add leave
+                  </Button>
+                </form>
+                <p className="mt-1 text-[11px] text-slate-400">No slots are offered on leave days — on WhatsApp or at the front desk.</p>
+              </div>
+
               <form action={setWorkingHours} className="space-y-2">
                 <input type="hidden" name="doctorId" value={d.id} />
                 {WEEKDAYS.map((label, wd) => {

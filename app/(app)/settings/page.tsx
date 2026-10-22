@@ -1,4 +1,7 @@
-import { CalendarHeart, CalendarOff, Hospital, MessageCircle, Settings, Trash2 } from "lucide-react";
+import { CalendarHeart, CalendarOff, Hospital, IndianRupee, MessageCircle, Settings, Trash2 } from "lucide-react";
+import { toggleService } from "@/app/actions/billing";
+import { ServiceForm } from "@/components/service-form";
+import { rupees } from "@/lib/money";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { fmt } from "@/lib/format";
@@ -26,7 +29,7 @@ export default async function SettingsPage() {
   const user = await requirePermission("settings.manage");
   const clinic = (await prisma.clinic.findUnique({
     where: { id: user.clinicId },
-    include: { holidays: { orderBy: { date: "asc" } } },
+    include: { holidays: { orderBy: { date: "asc" } }, services: { orderBy: [{ active: "desc" }, { name: "asc" }] } },
   }))!;
 
   const sharedNumber = process.env.SHARED_WHATSAPP_NUMBER || "";
@@ -70,6 +73,9 @@ export default async function SettingsPage() {
             <Field label="Timezone" hint="IANA name, e.g. Asia/Kolkata">
               <Input name="timezone" defaultValue={clinic.timezone} required />
             </Field>
+            <Field label="Reception phone" hint="Printed on receipts and reminder messages">
+              <Input name="phone" defaultValue={clinic.phone ?? ""} inputMode="tel" placeholder="020 4000 1234" />
+            </Field>
             <Field label="Address" className="sm:col-span-2">
               <Input name="addressText" defaultValue={clinic.addressText ?? ""} placeholder="2nd Floor, MG Road, Pune" />
             </Field>
@@ -91,6 +97,34 @@ export default async function SettingsPage() {
               <Button type="submit">Save changes</Button>
             </div>
           </form>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle icon={IndianRupee}>Service price list</CardTitle>
+          <CardDescription>One-tap charges on bills — dressing, injection, ECG, certificates. Consultation fees are set per doctor.</CardDescription>
+        </CardHeader>
+        <CardBody className="space-y-4">
+          <ServiceForm />
+          {clinic.services.length > 0 && (
+            <ul className="divide-y divide-slate-100 rounded-xl ring-1 ring-slate-200">
+              {clinic.services.map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                  <span className={s.active ? "text-slate-800" : "text-slate-400 line-through"}>{s.name}</span>
+                  <span className="flex items-center gap-3">
+                    <span className="tabular font-medium">{rupees(s.price)}</span>
+                    <form action={toggleService}>
+                      <input type="hidden" name="id" value={s.id} />
+                      <Button variant="ghost" size="sm">
+                        {s.active ? "Disable" : "Enable"}
+                      </Button>
+                    </form>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardBody>
       </Card>
 
@@ -146,8 +180,11 @@ export default async function SettingsPage() {
             <Field label="Phone number ID">
               <Input name="phoneNumberId" defaultValue={clinic.whatsappPhoneNumberId ?? ""} placeholder="1234567890" />
             </Field>
-            <Field label="Access token">
-              <Input name="token" defaultValue={clinic.whatsappToken ?? ""} placeholder="EAAG…" />
+            <Field
+              label="Access token"
+              hint={clinic.whatsappToken ? `A token ending …${clinic.whatsappToken.slice(-4)} is saved. Leave blank to keep it.` : "Stored server-side; never shown again."}
+            >
+              <Input name="token" type="password" autoComplete="off" placeholder={clinic.whatsappToken ? "•••••••• (unchanged)" : "EAAG…"} />
             </Field>
             <Button variant="secondary" type="submit">
               Save

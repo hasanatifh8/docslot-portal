@@ -2,17 +2,19 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   Activity,
-  ClipboardPlus,
-  Download,
   Droplet,
   FileText,
   Gauge,
   HeartPulse,
   History,
   Hourglass,
+  IndianRupee,
+  NotebookPen,
   Ruler,
   Scale,
   ShieldAlert,
+  Siren,
+  Sparkles,
   Stethoscope,
   Thermometer,
   Weight,
@@ -22,12 +24,18 @@ import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { dateOnlyValue, fmt } from "@/lib/format";
-import { patientMeta } from "@/lib/patients";
+import { ageFrom, patientMeta } from "@/lib/patients";
 import { canTransition, type VisitStatus } from "@/lib/encounter";
+import { FLAG_TEXT, bmi, bmiBand, clinicalSummary, flagVital, type VitalKey } from "@/lib/clinical";
+import { rupees } from "@/lib/money";
+import type { DrugDefault } from "@/lib/drugs";
 import { cancelVisit, startConsultation, startTriage } from "@/app/actions/opd";
-import { Button, Card, CardBody, CardHeader, CardTitle, PageHeader, buttonClass } from "@/components/ui";
-import { ConsultationForm, VitalsForm } from "@/components/visit-forms";
+import { Badge, Button, Card, CardBody, CardHeader, CardTitle, buttonClass, cn } from "@/components/ui";
+import { TriageForm } from "@/components/triage-form";
+import { ConsultationWorkspace, type RxItem, type Template } from "@/components/consultation-workspace";
+import { AddendumForm, SendRxButton } from "@/components/visit-actions";
 import { AutoRefresh, VisitStatusBadge, VisitStepper } from "@/components/visit-status";
+import { PatientAvatar } from "@/components/patient-avatar";
 
 export default async function VisitPage({ params }: PageProps<"/opd/[id]">) {
   const user = await requirePermission("opd.view");
@@ -44,16 +52,11 @@ export default async function VisitPage({ params }: PageProps<"/opd/[id]">) {
       triageBy: { select: { name: true } },
       consultBy: { select: { name: true } },
       prescriptionItems: { orderBy: { sortOrder: "asc" } },
+      addenda: { orderBy: { createdAt: "asc" }, include: { author: { select: { name: true } } } },
+      invoice: { select: { id: true, number: true, status: true, total: true, paid: true } },
     },
   });
   if (!visit) notFound();
-
-  const previous = await prisma.visit.findMany({
-    where: { patientId: visit.patientId, id: { not: visit.id }, status: "COMPLETED" },
-    orderBy: { checkedInAt: "desc" },
-    take: 5,
-    include: { doctor: true },
-  });
 
   const s = visit.status;
   const ownPatient = user.role !== "doctor" || user.doctorId === visit.doctorId;
@@ -62,36 +65,112 @@ export default async function VisitPage({ params }: PageProps<"/opd/[id]">) {
   const showTriageForm = s === "TRIAGE_IN_PROGRESS" && mayTriage;
   const showConsultForm = s === "IN_CONSULTATION" && mayConsult;
   const p = visit.patient;
+  const age = ageFrom(p.dob);
   const t = (d: Date | null) => (d ? fmt(d, tz, "h:mm a") : undefined);
 
-  const bmi = visit.heightCm && visit.weightKg ? (visit.weightKg / (visit.heightCm / 100) ** 2).toFixed(1) : null;
-  const vitals: VitalTile[] = [
-    { label: "Blood pressure", icon: Gauge, tone: "text-rose-500 bg-rose-50", value: visit.bpSystolic != null && visit.bpDiastolic != null ? `${visit.bpSystolic}/${visit.bpDiastolic}` : null, unit: "mmHg" },
-    { label: "Pulse", icon: HeartPulse, tone: "text-rose-500 bg-rose-50", value: visit.pulse, unit: "bpm" },
-    { label: "SpO₂", icon: Droplet, tone: "text-sky-600 bg-sky-50", value: visit.spo2, unit: "%" },
-    { label: "Temperature", icon: Thermometer, tone: "text-amber-600 bg-amber-50", value: visit.temperatureC, unit: "°C" },
-    { label: "Resp. rate", icon: Wind, tone: "text-sky-600 bg-sky-50", value: visit.respRate, unit: "/min" },
-    { label: "Height", icon: Ruler, tone: "text-brand-600 bg-brand-50", value: visit.heightCm, unit: "cm" },
-    { label: "Weight", icon: Weight, tone: "text-brand-600 bg-brand-50", value: visit.weightKg, unit: "kg" },
-    { label: "BMI", icon: Scale, tone: "text-violet-600 bg-violet-50", value: bmi, unit: "" },
+  const [previous, templates, favourites] = await Promise.all([
+    prisma.visit.findMany({
+      where: { patientId: visit.patientId, id: { not: visit.id }, status: "COMPLETED" },
+      orderBy: { checkedInAt: "desc" },
+      take: 6,
+      omit: { prescriptionPdf: true },
+      include: { doctor: true, prescriptionItems: { orderBy: { sortOrder: "asc" } } },
+    }),
+    showConsultForm
+      ? prisma.consultTemplate.findMany({
+          where: { clinicId: user.clinicId, OR: [{ doctorId: null }, { doctorId: visit.doctorId }] },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+    showConsultForm ? doctorFavourites(visit.doctorId) : Promise.resolve([] as DrugDefault[]),
+  ]);
+
+  const vitals: Record<VitalKey, number | null> = {
+    bpSystolic: visit.bpSystolic,
+    bpDiastolic: visit.bpDiastolic,
+    pulse: visit.pulse,
+    spo2: visit.spo2,
+    temperatureC: visit.temperatureC,
+    respRate: visit.respRate,
+    heightCm: visit.heightCm,
+    weightKg: visit.weightKg,
+  };
+  const b = bmi(visit.heightCm, visit.weightKg);
+  const tiles: { key?: VitalKey; label: string; icon: typeof Gauge; value: string | number | null; unit: string; flag?: ReturnType<typeof flagVital> }[] = [
+    {
+      label: "Blood pressure",
+      icon: Gauge,
+      value: visit.bpSystolic != null && visit.bpDiastolic != null ? `${visit.bpSystolic}/${visit.bpDiastolic}` : null,
+      unit: "mmHg",
+      flag: worst(flagVital("bpSystolic", visit.bpSystolic), flagVital("bpDiastolic", visit.bpDiastolic)),
+    },
+    { label: "Pulse", icon: HeartPulse, value: visit.pulse, unit: "bpm", flag: flagVital("pulse", visit.pulse) },
+    { label: "SpO₂", icon: Droplet, value: visit.spo2, unit: "%", flag: flagVital("spo2", visit.spo2) },
+    { label: "Temperature", icon: Thermometer, value: visit.temperatureC, unit: "°C", flag: flagVital("temperatureC", visit.temperatureC) },
+    { label: "Resp. rate", icon: Wind, value: visit.respRate, unit: "/min", flag: flagVital("respRate", visit.respRate) },
+    { label: "Height", icon: Ruler, value: visit.heightCm, unit: "cm" },
+    { label: "Weight", icon: Weight, value: visit.weightKg, unit: "kg" },
+    { label: "BMI", icon: Scale, value: b ? `${b}` : null, unit: b ? bmiBand(b) ?? "" : "" },
   ];
+  const last = previous[0];
+  const toRx = (i: RxItem) => ({ medicine: i.medicine, dosage: i.dosage, frequency: i.frequency, duration: i.duration, instructions: i.instructions });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Live sync while someone else holds the visit; paused while you're editing. */}
       {!showTriageForm && !showConsultForm && s !== "COMPLETED" && s !== "CANCELLED" && <AutoRefresh />}
 
-      <PageHeader
-        icon={ClipboardPlus}
-        title={`Token #${visit.token} · ${p.name || p.waPhone}`}
-        description={[p.uhid, patientMeta(p), visit.doctor.name, fmt(visit.checkedInAt, tz, "d MMM yyyy")]
-          .filter(Boolean)
-          .join(" · ")}
-        actions={
+      {/* Patient banner */}
+      <Card className="overflow-hidden">
+        <div className={cn("h-1", visit.priority === "emergency" ? "bg-rose-500" : visit.priority === "priority" ? "bg-amber-400" : "bg-gradient-to-r from-brand-400 to-brand-600")} />
+        <div className="flex flex-wrap items-center gap-4 p-4 sm:p-5">
+          <div
+            className={cn(
+              "flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl text-white shadow-md",
+              visit.priority === "emergency" ? "bg-gradient-to-br from-rose-500 to-rose-700" : "bg-gradient-to-br from-brand-500 to-brand-700"
+            )}
+          >
+            <span className="text-[9px] font-semibold tracking-widest uppercase opacity-80">Token</span>
+            <span className="tabular text-xl leading-none font-extrabold">{visit.token}</span>
+          </div>
+          <PatientAvatar name={p.name} gender={p.gender} className="hidden h-12 w-12 text-sm sm:flex" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-xl font-semibold tracking-tight text-slate-900">{p.name || p.waPhone}</h1>
+              {visit.priority !== "normal" && (
+                <Badge tone={visit.priority === "emergency" ? "red" : "amber"} className="gap-1">
+                  {visit.priority === "emergency" && <Siren className="h-3 w-3" />}
+                  {visit.priority}
+                </Badge>
+              )}
+              <Badge tone={visit.visitType === "follow_up" ? "green" : "brand"} className="normal-case">
+                {visit.visitType === "follow_up" ? "Follow-up" : "New visit"}
+              </Badge>
+            </div>
+            <p className="mt-0.5 truncate text-sm text-slate-500">
+              {[p.uhid, patientMeta(p), p.bloodGroup, `+${p.waPhone}`].filter(Boolean).join(" · ")}
+            </p>
+            <p className="truncate text-xs text-slate-400">
+              {visit.doctor.name}
+              {visit.doctor.room && ` · Room ${visit.doctor.room}`} · {fmt(visit.checkedInAt, tz, "d MMM yyyy, h:mm a")}
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <VisitStatusBadge status={s} />
+            {visit.invoice && can(user.role, "billing.view") && (
+              <Link
+                href={`/billing/${visit.invoice.id}`}
+                className={cn(
+                  "inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-semibold ring-1",
+                  visit.invoice.status === "paid" ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-amber-50 text-amber-800 ring-amber-200"
+                )}
+              >
+                <IndianRupee className="h-3.5 w-3.5" />
+                {visit.invoice.status === "paid" ? "Paid" : `${rupees(visit.invoice.total - visit.invoice.paid)} due`}
+              </Link>
+            )}
             <Link href={`/patients/${p.id}`} className={buttonClass("secondary", "sm")}>
-              Patient profile
+              Profile
             </Link>
             {can(user.role, "opd.checkin") && canTransition(s, "cancel") && (
               <form action={cancelVisit}>
@@ -102,8 +181,23 @@ export default async function VisitPage({ params }: PageProps<"/opd/[id]">) {
               </form>
             )}
           </div>
-        }
-      />
+        </div>
+        {(p.allergies || p.chronicConditions) && (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-rose-100 bg-rose-50 px-5 py-2.5 text-sm text-rose-900">
+            <ShieldAlert className="h-4 w-4 text-rose-600" />
+            {p.allergies && (
+              <span>
+                <span className="font-semibold">Allergies:</span> {p.allergies}
+              </span>
+            )}
+            {p.chronicConditions && (
+              <span>
+                <span className="font-semibold">Conditions:</span> {p.chronicConditions}
+              </span>
+            )}
+          </div>
+        )}
+      </Card>
 
       <Card className="px-5 py-4">
         <VisitStepper
@@ -128,26 +222,6 @@ export default async function VisitPage({ params }: PageProps<"/opd/[id]">) {
         </p>
       </Card>
 
-      {(p.allergies || p.chronicConditions) && (
-        <div className="flex items-start gap-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-900 ring-1 ring-rose-600/15 ring-inset">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-500 text-white">
-            <ShieldAlert className="h-4 w-4" />
-          </div>
-          <div className="space-y-0.5">
-            {p.allergies && (
-              <div>
-                <span className="font-semibold">Allergies:</span> {p.allergies}
-              </div>
-            )}
-            {p.chronicConditions && (
-              <div>
-                <span className="font-semibold">Conditions:</span> {p.chronicConditions}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       <NextStep status={s} visitId={visit.id} mayTriage={mayTriage} mayConsult={mayConsult} doctorName={visit.doctor.name} triager={visit.triageBy?.name} />
 
       {s === "COMPLETED" && visit.pdfGeneratedAt && (
@@ -158,66 +232,147 @@ export default async function VisitPage({ params }: PageProps<"/opd/[id]">) {
             </div>
             <div>
               <div className="text-sm font-medium text-slate-900">Prescription (PDF)</div>
-              <div className="text-xs text-slate-500">Finalized {fmt(visit.pdfGeneratedAt, tz, "d MMM yyyy, h:mm a")}</div>
+              <div className="text-xs text-slate-500">
+                Signed {fmt(visit.pdfGeneratedAt, tz, "d MMM yyyy, h:mm a")}
+                {visit.rxSentAt && ` · sent on WhatsApp ${fmt(visit.rxSentAt, tz, "h:mm a")}`}
+              </div>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <a href={`/api/visits/${visit.id}/prescription`} target="_blank" rel="noreferrer" className={buttonClass("secondary", "sm")}>
-              Open
+              Open / print
             </a>
-            <a href={`/api/visits/${visit.id}/prescription?download`} className={buttonClass("primary", "sm")}>
-              <Download className="h-3.5 w-3.5" />
+            <a href={`/api/visits/${visit.id}/prescription?download`} className={buttonClass("secondary", "sm")}>
               Download
             </a>
+            <SendRxButton visitId={visit.id} sentAt={visit.rxSentAt ? fmt(visit.rxSentAt, tz, "d MMM, h:mm a") : null} />
           </div>
         </Card>
       )}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex items-center justify-between">
           <CardTitle icon={HeartPulse}>Triage · vitals</CardTitle>
+          {visit.triageCompletedAt && <span className="text-xs text-slate-400">recorded {t(visit.triageCompletedAt)}</span>}
         </CardHeader>
         <CardBody>
           {showTriageForm ? (
-            <VitalsForm visitId={visit.id} vitals={visit} />
+            <TriageForm visitId={visit.id} vitals={vitals} />
           ) : (
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {vitals.map(({ label, icon: Icon, tone, value, unit }) => (
-                <div key={label} className="flex items-center gap-3 rounded-xl bg-canvas/70 p-3 ring-1 ring-brand-900/[0.04]">
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${tone}`}>
-                    <Icon className="h-4 w-4" />
+              {tiles.map(({ label, icon: Icon, value, unit, flag }) => {
+                const bad = flag === "critical" ? "critical" : flag === "low" || flag === "high" ? "warn" : null;
+                return (
+                  <div
+                    key={label}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl p-3 ring-1",
+                      bad === "critical" ? "bg-rose-50 ring-rose-300" : bad === "warn" ? "bg-amber-50 ring-amber-200" : "bg-canvas/70 ring-brand-900/[0.04]"
+                    )}
+                  >
+                    <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", bad === "critical" ? "bg-rose-500 text-white" : bad === "warn" ? "bg-amber-400 text-white" : "bg-white text-brand-600")}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="truncate text-[11px] text-slate-500">{label}</dt>
+                      <dd className="tabular text-sm font-semibold text-slate-900">
+                        {value ?? <span className="font-normal text-slate-400">—</span>}
+                        {value != null && unit && <span className="ml-0.5 text-xs font-normal text-slate-500">{unit}</span>}
+                        {flag && flag !== "ok" && flag !== "invalid" && (
+                          <span className={cn("ml-1.5 text-[10px] font-bold uppercase", bad === "critical" ? "text-rose-600" : "text-amber-700")}>{FLAG_TEXT[flag]}</span>
+                        )}
+                      </dd>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <dt className="truncate text-[11px] text-slate-500">{label}</dt>
-                    <dd className="text-sm font-semibold text-slate-900">
-                      {value ?? <span className="font-normal text-slate-400">—</span>}
-                      {value != null && unit && <span className="ml-0.5 text-xs font-normal text-slate-500">{unit}</span>}
-                    </dd>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </dl>
           )}
         </CardBody>
       </Card>
 
-      {(showConsultForm || ["IN_CONSULTATION", "COMPLETED"].includes(s) || visit.diagnosis) && (
-        <Card>
-          <CardHeader>
-            <CardTitle icon={Stethoscope}>Consultation</CardTitle>
-          </CardHeader>
-          <CardBody>
-            {showConsultForm ? (
-              <ConsultationForm
-                visitId={visit.id}
-                values={{ ...visit, followUpDate: dateOnlyValue(visit.followUpDate) }}
-                prescription={visit.prescriptionItems}
-              />
-            ) : (
+      {showConsultForm ? (
+        <ConsultationWorkspace
+          visitId={visit.id}
+          initial={{
+            chiefComplaint: visit.chiefComplaint ?? "",
+            history: visit.history ?? "",
+            examination: visit.examination ?? "",
+            diagnosis: visit.diagnosis ?? "",
+            icdCode: visit.icdCode ?? "",
+            advice: visit.advice ?? "",
+            followUpDate: dateOnlyValue(visit.followUpDate),
+          }}
+          initialItems={visit.prescriptionItems.map(toRx)}
+          patient={{ name: p.name, age, gender: p.gender, allergies: p.allergies, chronicConditions: p.chronicConditions, waPhone: p.waPhone }}
+          vitals={vitals}
+          visitType={visit.visitType}
+          templates={templates.map(
+            (tpl): Template => ({
+              id: tpl.id,
+              name: tpl.name,
+              mine: tpl.createdById === user.id || user.role === "admin",
+              shared: tpl.doctorId == null,
+              chiefComplaint: tpl.chiefComplaint,
+              examination: tpl.examination,
+              diagnosis: tpl.diagnosis,
+              icdCode: tpl.icdCode,
+              advice: tpl.advice,
+              items: (Array.isArray(tpl.items) ? tpl.items : []) as RxItem[],
+            })
+          )}
+          favourites={favourites}
+          lastRx={last ? { date: fmt(last.checkedInAt, tz, "d MMM yyyy"), diagnosis: last.diagnosis, items: last.prescriptionItems.map(toRx) } : null}
+        />
+      ) : (
+        (["IN_CONSULTATION", "COMPLETED"].includes(s) || visit.diagnosis) && (
+          <Card>
+            <CardHeader>
+              <CardTitle icon={Stethoscope}>Consultation</CardTitle>
+            </CardHeader>
+            <CardBody className="space-y-5">
+              {s === "COMPLETED" && (
+                <div className="rounded-xl bg-violet-50/60 p-4 ring-1 ring-violet-200/60">
+                  <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-violet-800 uppercase">
+                    <Sparkles className="h-3.5 w-3.5" /> Clinical summary
+                  </div>
+                  <p className="text-sm leading-relaxed text-slate-700">
+                    {clinicalSummary({
+                      patient: { name: p.name, age, gender: p.gender, allergies: p.allergies, chronicConditions: p.chronicConditions },
+                      visitType: visit.visitType,
+                      vitals,
+                      chiefComplaint: visit.chiefComplaint,
+                      history: visit.history,
+                      examination: visit.examination,
+                      diagnosis: visit.diagnosis,
+                      icdCode: visit.icdCode,
+                      items: visit.prescriptionItems,
+                      advice: visit.advice,
+                      followUp: visit.followUpDate ? fmt(visit.followUpDate, "UTC", "d MMM yyyy") : null,
+                    })}
+                  </p>
+                </div>
+              )}
               <ConsultationSummary visit={visit} />
-            )}
-          </CardBody>
-        </Card>
+              {(visit.addenda.length > 0 || (s === "COMPLETED" && mayConsult)) && (
+                <div className="space-y-3 border-t border-slate-100 pt-4">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                    <NotebookPen className="h-3.5 w-3.5" /> Addenda
+                  </div>
+                  {visit.addenda.map((a) => (
+                    <div key={a.id} className="rounded-xl bg-amber-50/60 p-3 text-sm ring-1 ring-amber-200/70">
+                      <p className="whitespace-pre-wrap text-slate-800">{a.text}</p>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        {a.author?.name ?? "Unknown"} · {fmt(a.createdAt, tz, "d MMM yyyy, h:mm a")}
+                      </p>
+                    </div>
+                  ))}
+                  {s === "COMPLETED" && mayConsult && <AddendumForm visitId={visit.id} />}
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        )
       )}
 
       {previous.length > 0 && (
@@ -229,11 +384,17 @@ export default async function VisitPage({ params }: PageProps<"/opd/[id]">) {
             {previous.map((v) => (
               <li key={v.id}>
                 <Link href={`/opd/${v.id}`} className="block px-4 py-3 text-sm hover:bg-brand-50/50 sm:px-5">
-                  <span className="font-medium text-slate-900">{fmt(v.checkedInAt, tz, "d MMM yyyy")}</span>
-                  <span className="text-slate-500">
-                    {" "}
-                    · {v.doctor.name} · {v.diagnosis || "No diagnosis recorded"}
-                  </span>
+                  <div>
+                    <span className="font-medium text-slate-900">{fmt(v.checkedInAt, tz, "d MMM yyyy")}</span>
+                    <span className="text-slate-500">
+                      {" "}
+                      · {v.doctor.name} · {v.diagnosis || "No diagnosis recorded"}
+                      {v.icdCode && ` [${v.icdCode}]`}
+                    </span>
+                  </div>
+                  {v.prescriptionItems.length > 0 && (
+                    <div className="mt-0.5 truncate text-xs text-slate-400">℞ {v.prescriptionItems.map((i) => i.medicine).join(", ")}</div>
+                  )}
                 </Link>
               </li>
             ))}
@@ -244,13 +405,38 @@ export default async function VisitPage({ params }: PageProps<"/opd/[id]">) {
   );
 }
 
-type VitalTile = {
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  tone: string;
-  value: string | number | null;
-  unit: string;
-};
+function worst(...flags: ReturnType<typeof flagVital>[]) {
+  if (flags.includes("critical")) return "critical" as const;
+  if (flags.includes("high")) return "high" as const;
+  if (flags.includes("low")) return "low" as const;
+  return flags.includes("ok") ? ("ok" as const) : null;
+}
+
+/** The doctor's most-prescribed lines, with the dose they last used. */
+async function doctorFavourites(doctorId: string): Promise<DrugDefault[]> {
+  const top = await prisma.prescriptionItem.groupBy({
+    by: ["medicine"],
+    where: { visit: { doctorId, status: "COMPLETED" } },
+    _count: { medicine: true },
+    orderBy: { _count: { medicine: "desc" } },
+    take: 10,
+  });
+  if (!top.length) return [];
+  const rows = await prisma.prescriptionItem.findMany({
+    where: { medicine: { in: top.map((t) => t.medicine) }, visit: { doctorId } },
+    orderBy: { visit: { checkedInAt: "desc" } },
+  });
+  return top.map((t) => {
+    const r = rows.find((x) => x.medicine === t.medicine);
+    return {
+      medicine: t.medicine,
+      dosage: r?.dosage ?? undefined,
+      frequency: r?.frequency ?? undefined,
+      duration: r?.duration ?? undefined,
+      instructions: r?.instructions ?? undefined,
+    };
+  });
+}
 
 /** The single call-to-action for whoever is looking at the visit right now. */
 function NextStep({
@@ -278,7 +464,9 @@ function NextStep({
       </div>
       <form action={fn}>
         <input type="hidden" name="visitId" value={visitId} />
-        <Button>{label}</Button>
+        <Button size="lg" autoFocus>
+          {label}
+        </Button>
       </form>
     </Card>
   );
@@ -291,15 +479,11 @@ function NextStep({
 
   switch (status) {
     case "CHECKED_IN":
-      return mayTriage
-        ? action("Start triage", startTriage, "Patient has arrived. Open triage to capture vitals.")
-        : waiting("Waiting for triage.");
+      return mayTriage ? action("Start triage", startTriage, "Patient has arrived. Open triage to capture vitals.") : waiting("Waiting for triage.");
     case "TRIAGE_IN_PROGRESS":
       return mayTriage ? null : waiting(`Triage in progress${triager ? ` with ${triager}` : ""}.`);
     case "TRIAGE_COMPLETED":
-      return mayConsult
-        ? action("Start consultation", startConsultation, "Triage done. Patient is ready for you.")
-        : waiting(`Triage done — waiting for ${doctorName}.`);
+      return mayConsult ? action("Start consultation", startConsultation, "Triage done. Patient is ready for you.") : waiting(`Triage done — waiting for ${doctorName}.`);
     case "IN_CONSULTATION":
       return mayConsult ? null : waiting(`With ${doctorName}.`);
     default:
@@ -315,6 +499,7 @@ function ConsultationSummary({
     history: string | null;
     examination: string | null;
     diagnosis: string | null;
+    icdCode: string | null;
     advice: string | null;
     followUpDate: Date | null;
     prescriptionItems: { id: string; medicine: string; dosage: string | null; frequency: string | null; duration: string | null; instructions: string | null }[];
@@ -324,7 +509,7 @@ function ConsultationSummary({
     ["Chief complaint", visit.chiefComplaint],
     ["History", visit.history],
     ["Examination", visit.examination],
-    ["Diagnosis", visit.diagnosis],
+    ["Diagnosis", visit.diagnosis ? `${visit.diagnosis}${visit.icdCode ? ` (ICD-10 ${visit.icdCode})` : ""}` : null],
     ["Advice", visit.advice],
     ["Follow-up", visit.followUpDate ? fmt(visit.followUpDate, "UTC", "d MMM yyyy") : null],
   ];
@@ -345,9 +530,7 @@ function ConsultationSummary({
             {visit.prescriptionItems.map((i) => (
               <li key={i.id}>
                 <span className="font-medium">{i.medicine}</span>{" "}
-                <span className="text-slate-600">
-                  {[i.dosage, i.frequency, i.duration, i.instructions].filter(Boolean).join(" · ")}
-                </span>
+                <span className="text-slate-600">{[i.dosage, i.frequency, i.duration, i.instructions].filter(Boolean).join(" · ")}</span>
               </li>
             ))}
           </ol>

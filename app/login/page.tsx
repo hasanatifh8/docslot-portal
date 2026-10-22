@@ -1,4 +1,3 @@
-import { Plus_Jakarta_Sans } from "next/font/google";
 import {
   HeartPulse,
   KeyRound,
@@ -11,8 +10,6 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/brand";
 import { LoginForm } from "@/components/login-form";
-
-const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], display: "swap" });
 
 const features = [
   {
@@ -48,7 +45,7 @@ const ECG_PATH =
 export default function LoginPage() {
   return (
     <main
-      className={`${jakarta.className} grid min-h-dvh w-full flex-1 grid-cols-1 grid-rows-[auto_1fr] overflow-x-hidden bg-slate-50 text-slate-800 antialiased selection:bg-teal-500 selection:text-white lg:grid-cols-12 lg:grid-rows-1`}
+      className={`grid min-h-dvh w-full flex-1 grid-cols-1 grid-rows-[auto_1fr] overflow-x-hidden bg-slate-50 text-slate-800 antialiased selection:bg-teal-500 selection:text-white lg:grid-cols-12 lg:grid-rows-1`}
     >
       {/* ─── Brand panel (compact banner on phones, full panel on desktop) ─── */}
       <section className="relative flex flex-col justify-between overflow-hidden bg-[#091E28] px-5 py-6 text-white sm:px-10 sm:py-8 lg:col-span-7 lg:p-10 2xl:p-14">

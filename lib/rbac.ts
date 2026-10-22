@@ -23,6 +23,13 @@ const PERMISSIONS = {
   // Triage = vitals capture, done before the senior doctor sees the patient.
   "opd.triage": ["admin", "junior_doctor", "nurse"],
   "opd.consult": ["admin", "doctor"],
+  "followups.view": ["admin", "receptionist", "doctor", "nurse"],
+  "billing.view": ["admin", "receptionist"],
+  "billing.collect": ["admin", "receptionist"],
+  // Discounts and refunds move money out — admin only.
+  "billing.adjust": ["admin"],
+  "reports.view": ["admin"],
+  "audit.view": ["admin"],
   "doctors.manage": ["admin"],
   "staff.manage": ["admin"],
   "settings.manage": ["admin"],

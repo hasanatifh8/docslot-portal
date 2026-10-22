@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
+const appFont = Plus_Jakarta_Sans({ subsets: ["latin"], display: "swap", variable: "--font-app" });
 
 export const metadata: Metadata = {
   title: "DocSlot HMS",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
+    <html lang="en" className={`${appFont.variable} h-full`}>
       <body className="min-h-full flex flex-col bg-canvas text-slate-900">{children}</body>
     </html>
   );

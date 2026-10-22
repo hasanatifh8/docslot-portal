@@ -44,7 +44,7 @@ export async function getCurrentUser() {
     where: { id },
     include: { user: { include: { clinic: true } } },
   });
-  if (!session || session.expiresAt < new Date() || !session.user.active) {
+  if (!session || session.expiresAt < new Date() || !session.user.active || !session.user.clinic.active) {
     if (session) await prisma.session.delete({ where: { id } }).catch(() => {});
     return null;
   }
