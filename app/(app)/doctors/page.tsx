@@ -15,7 +15,7 @@ import {
   deleteLeave,
   cancelLeaveBookings,
 } from "@/app/actions/config";
-import { BadgePlus, Building2, CalendarOff, IndianRupee, Stethoscope, Trash2 } from "lucide-react";
+import { BadgePlus, Building2, CalendarOff, IndianRupee, Stethoscope, Trash2 } from "@/components/icons";
 import { dateOnlyValue, fmt } from "@/lib/format";
 import { fromZonedTime } from "date-fns-tz";
 import { rupeeInput, rupees } from "@/lib/money";

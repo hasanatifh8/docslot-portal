@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, Banknote, CreditCard, IndianRupee, Percent, Plus, ReceiptText, Smartphone, Undo2, Wallet, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
+import { Ban, Banknote, CreditCard, IndianRupee, Percent, ReceiptText, Smartphone, Undo2, Wallet } from "@/components/icons";
 import { addInvoiceItem, applyDiscount, collectPayment, createInvoice, refundPayment, removeInvoiceItem, voidInvoice } from "@/app/actions/billing";
 import { Banner, Button, Chip, Field, Input, Select, cn } from "@/components/ui";
 import { PatientPicker, type PickedPatient } from "@/components/patient-picker";

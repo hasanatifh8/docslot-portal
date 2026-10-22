@@ -2,16 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CalendarPlus,
-  ClipboardPlus,
-  CornerDownLeft,
-  IndianRupee,
-  Search,
-  UserRoundPlus,
-  UsersRound,
-  type LucideIcon,
-} from "lucide-react";
+import { CornerDownLeft } from "lucide-react";
+import type { AppIcon } from "@/components/icons";
+import { CalendarPlus, ClipboardPlus, IndianRupee, Search, UserRoundPlus, UsersRound } from "@/components/icons";
 import { cn, Kbd } from "@/components/ui";
 import { PatientAvatar } from "@/components/patient-avatar";
 import { can } from "@/lib/rbac";
@@ -28,7 +21,7 @@ export type PatientHit = {
 };
 
 type Item =
-  | { kind: "action"; id: string; label: string; hint?: string; icon: LucideIcon; href: string }
+  | { kind: "action"; id: string; label: string; hint?: string; icon: AppIcon; href: string }
   | { kind: "patient"; id: string; patient: PatientHit };
 
 /** Debounced patient search shared by the palette and pickers. */

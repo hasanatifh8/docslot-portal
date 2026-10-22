@@ -1,13 +1,4 @@
-import {
-  HeartPulse,
-  KeyRound,
-  MessageCircle,
-  Pill,
-  ShieldCheck,
-  Sparkles,
-  Stethoscope,
-  UsersRound,
-} from "lucide-react";
+import { HeartPulse, KeyRound, MessageCircle, Pill, ShieldCheck, Sparkles, Stethoscope, UsersRound } from "@/components/icons";
 import { Logo } from "@/components/brand";
 import { LoginForm } from "@/components/login-form";
 

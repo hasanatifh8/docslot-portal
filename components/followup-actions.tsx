@@ -2,7 +2,8 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BellRing, CheckCheck } from "lucide-react";
+import { CheckCheck } from "lucide-react";
+import { BellRing } from "@/components/icons";
 import { closeFollowUp, sendFollowUpReminder } from "@/app/actions/followups";
 import { Button } from "@/components/ui";
 import { useToast } from "@/components/toast";

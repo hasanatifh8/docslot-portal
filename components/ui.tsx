@@ -251,8 +251,9 @@ export function PageHeader({
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-3">
         {Icon && (
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-md shadow-brand-700/20">
-            <Icon className="h-5 w-5" />
+          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 via-brand-600 to-brand-800 text-white shadow-lg ring-1 shadow-brand-700/25 ring-white/20">
+            <div aria-hidden className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/25 to-transparent" />
+            <Icon className="relative h-6 w-6" />
           </div>
         )}
         <div className="min-w-0">
@@ -348,8 +349,10 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
       {Icon && (
-        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-500 ring-8 ring-brand-50/40">
-          <Icon className="h-5 w-5" />
+        <div className="relative mb-4 flex h-20 w-20 items-center justify-center">
+          <div aria-hidden className="absolute inset-0 rounded-full bg-gradient-to-br from-brand-100 to-brand-50" />
+          <div aria-hidden className="absolute inset-3 rounded-full bg-white shadow-sm ring-1 ring-brand-100" />
+          <Icon className="relative h-8 w-8 text-brand-500" />
         </div>
       )}
       <p className="text-sm font-medium text-slate-700">{title}</p>

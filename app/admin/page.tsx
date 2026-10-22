@@ -1,4 +1,4 @@
-import { Building2, Hospital, ListChecks, LogOut } from "lucide-react";
+import { Building2, Hospital, ListChecks, LogOut } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requirePlatformAdmin } from "@/lib/platform-auth";
 import { platformLogoutAction } from "@/app/actions/platform";

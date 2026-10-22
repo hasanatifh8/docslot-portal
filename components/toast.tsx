@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { CheckCircle2, Info, TriangleAlert, X } from "lucide-react";
+import { X } from "lucide-react";
+import { CheckCircle2, Info, TriangleAlert } from "@/components/icons";
 import { cn } from "@/components/ui";
 
 type Tone = "success" | "error" | "info";

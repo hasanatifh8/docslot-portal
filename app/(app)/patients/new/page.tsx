@@ -1,4 +1,4 @@
-import { UserRoundPlus } from "lucide-react";
+import { UserRoundPlus } from "@/components/icons";
 import { requirePermission } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { RegistrationWizard } from "@/components/registration-wizard";

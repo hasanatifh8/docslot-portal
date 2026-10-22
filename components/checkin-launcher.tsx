@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ClipboardPlus } from "lucide-react";
+import { ClipboardPlus } from "@/components/icons";
 import { Button } from "@/components/ui";
 import { CheckInDrawer, CheckInPanel, type QueueDoctor } from "@/components/checkin-panel";
 import type { PickedPatient } from "@/components/patient-picker";

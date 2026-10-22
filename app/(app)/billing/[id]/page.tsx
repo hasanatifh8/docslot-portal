@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { History, IndianRupee, Printer, ReceiptText, SlidersHorizontal } from "lucide-react";
+import { History, IndianRupee, Printer, ReceiptText, SlidersHorizontal } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { can } from "@/lib/rbac";

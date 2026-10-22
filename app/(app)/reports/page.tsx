@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, CalendarCheck2, Clock, Download, IndianRupee, Stethoscope, UserRoundPlus, UsersRound } from "lucide-react";
+import { BarChart3, CalendarCheck2, Clock, Download, IndianRupee, Stethoscope, UserRoundPlus, UsersRound } from "@/components/icons";
 import { formatInTimeZone } from "date-fns-tz";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";

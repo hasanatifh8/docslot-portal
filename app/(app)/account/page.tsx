@@ -1,4 +1,4 @@
-import { KeyRound, UserRound } from "lucide-react";
+import { KeyRound, UserRound } from "@/components/icons";
 import { requireUser } from "@/lib/auth";
 import { ROLE_LABELS, isRole } from "@/lib/rbac";
 import { Card, CardBody, CardHeader, CardTitle, KeyValue, PageHeader } from "@/components/ui";

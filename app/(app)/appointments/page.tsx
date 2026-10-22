@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CalendarClock, CalendarHeart, CalendarPlus, ChevronLeft, ChevronRight, Repeat2 } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarClock, CalendarHeart, CalendarPlus, Repeat2 } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { can } from "@/lib/rbac";

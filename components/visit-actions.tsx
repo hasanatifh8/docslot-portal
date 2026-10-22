@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { MessageCircle, NotebookPen } from "lucide-react";
+import { MessageCircle, NotebookPen } from "@/components/icons";
 import { addAddendum, sendPrescription, type OpdFormState } from "@/app/actions/opd";
 import { Button, FormMessage, Textarea } from "@/components/ui";
 import { useActionToast, useToast } from "@/components/toast";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Activity, AlertTriangle, Droplet, Gauge, HeartPulse, Ruler, Scale, Thermometer, Weight, Wind } from "lucide-react";
+import { Activity, AlertTriangle, Droplet, Gauge, HeartPulse, Ruler, Scale, Thermometer, Weight, Wind } from "@/components/icons";
 import { saveVitals, type OpdFormState } from "@/app/actions/opd";
 import { Banner, Button, FormMessage, Kbd, cn } from "@/components/ui";
 import { useActionToast } from "@/components/toast";

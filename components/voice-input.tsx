@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Mic, MicOff } from "lucide-react";
+import { Mic, MicOff } from "@/components/icons";
 import { cn } from "@/components/ui";
 
 // Minimal typing for the Web Speech API (Chrome/Edge/Safari ship it prefixed).

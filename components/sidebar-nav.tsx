@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/ui";
 import { can } from "@/lib/rbac";
-import { NAV_SECTIONS } from "@/components/nav-items";
+import { NAV_SECTIONS, NAV_TONES } from "@/components/nav-items";
 
 export function SidebarNav({ role, onNavigate }: { role: string; onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -19,7 +19,7 @@ export function SidebarNav({ role, onNavigate }: { role: string; onNavigate?: ()
               {section.title}
             </div>
             <div className="space-y-0.5">
-              {items.map(({ href, label, icon: Icon }) => {
+              {items.map(({ href, label, icon: Icon, tone }) => {
                 const active = pathname === href || pathname.startsWith(href + "/");
                 return (
                   <Link
@@ -28,18 +28,20 @@ export function SidebarNav({ role, onNavigate }: { role: string; onNavigate?: ()
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all",
+                      "group flex items-center gap-3 rounded-xl px-2 py-1.5 text-sm font-medium transition-all",
                       active
-                        ? "bg-brand-600 text-white shadow-md shadow-brand-700/25"
-                        : "text-slate-600 hover:bg-brand-50 hover:text-brand-800"
+                        ? "bg-gradient-to-r from-brand-600 to-brand-700 text-white shadow-md shadow-brand-700/25"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                     )}
                   >
-                    <Icon
+                    <span
                       className={cn(
-                        "h-[18px] w-[18px] transition-colors",
-                        active ? "text-white" : "text-slate-400 group-hover:text-brand-600"
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 transition-transform group-hover:scale-105",
+                        active ? "bg-white/15 text-white ring-white/20" : NAV_TONES[tone]
                       )}
-                    />
+                    >
+                      <Icon weight={active ? "fill" : "duotone"} className="h-[18px] w-[18px]" />
+                    </span>
                     {label}
                   </Link>
                 );

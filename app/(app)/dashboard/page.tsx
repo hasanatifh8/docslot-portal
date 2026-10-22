@@ -1,18 +1,5 @@
 import Link from "next/link";
-import {
-  AlertTriangle,
-  CalendarClock,
-  CalendarOff,
-  CalendarSync,
-  IndianRupee,
-  Siren,
-  CalendarHeart,
-  ClipboardCheck,
-  ClipboardPlus,
-  HeartPulse,
-  Stethoscope,
-  UserRoundPlus,
-} from "lucide-react";
+import { AlertTriangle, CalendarClock, CalendarOff, CalendarSync, IndianRupee, Siren, CalendarHeart, ClipboardCheck, ClipboardPlus, HeartPulse, Stethoscope, UserRoundPlus, CalendarPlus, BarChart3, Monitor } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/rbac";
@@ -98,7 +85,7 @@ export default async function DashboardPage() {
             <p className="text-xs font-medium tracking-wider text-brand-100/80 uppercase">
               {formatInTimeZone(new Date(), tz, "EEEE, d MMMM yyyy")}
             </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight">Hello, {user.name.split(" ")[0]}</h1>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight">Hello, {greetingName(user.name)}</h1>
             <p className="mt-0.5 text-sm text-brand-100/90">{clinic.name}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -141,6 +128,8 @@ export default async function DashboardPage() {
           ))}
         </div>
       )}
+
+      <QuickActions role={user.role} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat icon={CalendarHeart} label="Appointments" value={booked} sub="still booked today" tone="violet" />
@@ -262,4 +251,49 @@ function StatusButton({ id, status, label }: { id: string; status: string; label
       </Button>
     </form>
   );
+}
+
+const ACTIONS = [
+  { href: "/patients/new", label: "Register patient", hint: "New UHID in 5 steps", icon: UserRoundPlus, perm: "patients.edit", tone: "from-sky-400 to-sky-600 shadow-sky-600/25" },
+  { href: "/appointments/new", label: "Book appointment", hint: "Live slots", icon: CalendarPlus, perm: "appointments.manage", tone: "from-violet-400 to-violet-600 shadow-violet-600/25" },
+  { href: "/opd?checkin=1", label: "OPD check-in", hint: "Token + fee", icon: ClipboardPlus, perm: "opd.checkin", tone: "from-brand-400 to-brand-700 shadow-brand-700/25" },
+  { href: "/opd", label: "My OPD queue", hint: "Ready for you", icon: HeartPulse, perm: "opd.consult", tone: "from-rose-400 to-rose-600 shadow-rose-600/25" },
+  { href: "/billing", label: "Collect payment", hint: "Bills due today", icon: IndianRupee, perm: "billing.collect", tone: "from-emerald-400 to-emerald-600 shadow-emerald-600/25" },
+  { href: "/follow-ups", label: "Follow-ups", hint: "Remind & rebook", icon: CalendarSync, perm: "followups.view", tone: "from-amber-400 to-amber-600 shadow-amber-600/25" },
+  { href: "/reports", label: "Reports", hint: "Today at a glance", icon: BarChart3, perm: "reports.view", tone: "from-indigo-400 to-indigo-600 shadow-indigo-600/25" },
+  { href: "/display", label: "Token display", hint: "Waiting-room TV", icon: Monitor, perm: "opd.view", tone: "from-slate-500 to-slate-700 shadow-slate-700/25" },
+] as const;
+
+/** Big, colour-coded shortcuts for the jobs this role does most. */
+function QuickActions({ role }: { role: string }) {
+  const items = ACTIONS.filter((a) => can(role, a.perm)).slice(0, 6);
+  if (!items.length) return null;
+  return (
+    <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {items.map(({ href, label, hint, icon: Icon, tone }) => (
+        <Link
+          key={href}
+          href={href}
+          target={href === "/display" ? "_blank" : undefined}
+          className="group shadow-care relative overflow-hidden rounded-2xl bg-white p-4 ring-1 ring-brand-900/[0.06] transition-all hover:-translate-y-0.5 hover:shadow-lg"
+        >
+          <div className={`relative mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg ${tone} transition-transform group-hover:scale-110 group-hover:rotate-[-4deg]`}>
+            <div aria-hidden className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/30 to-transparent" />
+            <Icon className="relative h-6 w-6" />
+          </div>
+          <div className="text-sm font-semibold text-slate-900">{label}</div>
+          <div className="text-[11px] text-slate-500">{hint}</div>
+          <div aria-hidden className="absolute -right-6 -bottom-6 opacity-[0.06] transition-opacity group-hover:opacity-[0.12]">
+            <Icon weight="light" className="h-24 w-24 text-slate-900" />
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+/** "Dr. Mehra" → "Dr. Mehra", "Ritu Kapoor" → "Ritu" (keep honorifics with the name). */
+function greetingName(name: string) {
+  const parts = name.trim().split(/\s+/);
+  return /^(dr|mr|mrs|ms|prof)\.?$/i.test(parts[0]) && parts[1] ? `${parts[0]} ${parts[1]}` : parts[0];
 }

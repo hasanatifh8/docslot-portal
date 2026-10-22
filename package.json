@@ -17,6 +17,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.4.0",

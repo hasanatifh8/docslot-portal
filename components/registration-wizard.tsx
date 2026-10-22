@@ -2,19 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import {
-  AlertTriangle,
-  BadgeCheck,
-  CalendarPlus,
-  ClipboardPlus,
-  HeartPulse,
-  IdCard,
-  Pencil,
-  Phone,
-  UserRound,
-  UserRoundPlus,
-  UsersRound,
-} from "lucide-react";
+import { Pencil } from "lucide-react";
+import { AlertTriangle, BadgeCheck, CalendarPlus, ClipboardPlus, HeartPulse, IdCard, Phone, UserRound, UserRoundPlus, UsersRound } from "@/components/icons";
 import { createPatient } from "@/app/actions/patients";
 import { Banner, Button, Card, Chip, Field, Input, buttonClass, cn } from "@/components/ui";
 import { FieldError, WizardFooter, WizardSteps } from "@/components/wizard";

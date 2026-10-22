@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { RotateCcw, TriangleAlert } from "lucide-react";
+import { RotateCcw, TriangleAlert } from "@/components/icons";
 import { Button, Card } from "@/components/ui";
 
 /** Friendly fallback when a page or action fails unexpectedly — nothing typed is lost on retry. */

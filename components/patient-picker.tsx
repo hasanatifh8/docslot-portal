@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { AlertTriangle, Search, UserRoundPlus, X } from "lucide-react";
+import { X } from "lucide-react";
+import { AlertTriangle, Search, UserRoundPlus } from "@/components/icons";
 import { createPatient } from "@/app/actions/patients";
 import { Button, Chip, Field, Input, cn } from "@/components/ui";
 import { FieldError } from "@/components/wizard";

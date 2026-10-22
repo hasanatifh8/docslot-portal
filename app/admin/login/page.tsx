@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { Lock, ShieldCheck } from "lucide-react";
+import { Lock } from "lucide-react";
+import { ShieldCheck } from "@/components/icons";
 import { platformLoginAction, type PlatformLoginState } from "@/app/actions/platform";
 import { AuthShell, Button, Field, Input } from "@/components/ui";
 import { Logo } from "@/components/brand";

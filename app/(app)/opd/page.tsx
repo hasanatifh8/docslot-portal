@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarClock, ClipboardList, ClipboardPlus, Monitor, Siren } from "lucide-react";
+import { CalendarClock, ClipboardList, ClipboardPlus, Monitor, Siren } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { can } from "@/lib/rbac";

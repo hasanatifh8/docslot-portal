@@ -1,4 +1,4 @@
-import { CalendarHeart, CalendarOff, Hospital, IndianRupee, MessageCircle, Settings, Trash2 } from "lucide-react";
+import { CalendarHeart, CalendarOff, Hospital, IndianRupee, MessageCircle, Settings, Trash2 } from "@/components/icons";
 import { toggleService } from "@/app/actions/billing";
 import { ServiceForm } from "@/components/service-form";
 import { rupees } from "@/lib/money";

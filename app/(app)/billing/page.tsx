@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Banknote, CalendarRange, ChevronLeft, ChevronRight, IndianRupee, ReceiptText, Wallet } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Banknote, CalendarRange, IndianRupee, ReceiptText, Wallet } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { dayRange, fmt } from "@/lib/format";

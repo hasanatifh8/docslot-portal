@@ -1,25 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  Activity,
-  Droplet,
-  FileText,
-  Gauge,
-  HeartPulse,
-  History,
-  Hourglass,
-  IndianRupee,
-  NotebookPen,
-  Ruler,
-  Scale,
-  ShieldAlert,
-  Siren,
-  Sparkles,
-  Stethoscope,
-  Thermometer,
-  Weight,
-  Wind,
-} from "lucide-react";
+import { Activity, Droplet, FileText, Gauge, HeartPulse, History, Hourglass, IndianRupee, NotebookPen, Ruler, Scale, ShieldAlert, Siren, Sparkles, Stethoscope, Thermometer, Weight, Wind } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { can } from "@/lib/rbac";

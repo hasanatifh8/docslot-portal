@@ -3,7 +3,8 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, BadgeCheck, Banknote, CreditCard, IndianRupee, Siren, Smartphone, Stethoscope, Timer, X } from "lucide-react";
+import { X } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Banknote, CreditCard, IndianRupee, Siren, Smartphone, Stethoscope, Timer } from "@/components/icons";
 import { checkIn, quoteCheckIn, type CheckInQuote } from "@/app/actions/opd";
 import { Banner, Button, Chip, Field, Input, buttonClass, cn } from "@/components/ui";
 import { PatientPicker, type PickedPatient } from "@/components/patient-picker";

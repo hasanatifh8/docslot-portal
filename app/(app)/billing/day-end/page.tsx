@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarRange } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { dayRange, fmt } from "@/lib/format";

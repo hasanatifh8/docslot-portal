@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { ArrowRight, Eye, EyeOff, Info, Loader2, LockKeyhole, Mail } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, Mail } from "lucide-react";
+import { Info } from "@/components/icons";
 import { loginAction, type FormState } from "@/app/actions/auth";
 
 const inputClass =

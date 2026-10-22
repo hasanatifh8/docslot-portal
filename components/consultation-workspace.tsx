@@ -2,25 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  AlertTriangle,
-  BookmarkPlus,
-  CalendarClock,
-  Check,
-  ClipboardCopy,
-  FileCheck2,
-  History,
-  LayoutTemplate,
-  ListChecks,
-  MessageCircle,
-  Pill,
-  Plus,
-  Repeat2,
-  Sparkles,
-  Stethoscope,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Check, ClipboardCopy, Plus, X } from "lucide-react";
+import { AlertTriangle, BookmarkPlus, CalendarClock, FileCheck2, History, LayoutTemplate, ListChecks, MessageCircle, Pill, Repeat2, Sparkles, Stethoscope, Trash2 } from "@/components/icons";
 import { deleteTemplate, saveConsultation, saveTemplate } from "@/app/actions/opd";
 import { Banner, Button, Chip, Input, Kbd, Textarea, cn } from "@/components/ui";
 import { Autocomplete } from "@/components/autocomplete";

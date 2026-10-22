@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { CalendarPlus } from "lucide-react";
+import { CalendarPlus } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { dayRange, fmt } from "@/lib/format";

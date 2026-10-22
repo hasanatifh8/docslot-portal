@@ -1,18 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  CalendarClock,
-  CalendarHeart,
-  CalendarPlus,
-  ClipboardList,
-  History,
-  IdCard,
-  IndianRupee,
-  Pencil,
-  Repeat2,
-  ShieldAlert,
-  UsersRound,
-} from "lucide-react";
+import { Pencil } from "lucide-react";
+import { CalendarClock, CalendarHeart, CalendarPlus, ClipboardList, History, IdCard, IndianRupee, Repeat2, ShieldAlert, UsersRound } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { can } from "@/lib/rbac";

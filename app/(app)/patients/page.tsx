@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Droplet, Search, UserRoundPlus, UsersRound } from "lucide-react";
+import { Droplet, Search, UserRoundPlus, UsersRound } from "@/components/icons";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";

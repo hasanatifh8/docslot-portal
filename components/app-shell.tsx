@@ -2,19 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import {
-  CalendarPlus,
-  ChevronDown,
-  ClipboardPlus,
-  Hospital,
-  KeyRound,
-  LogOut,
-  Menu,
-  Plus,
-  Search,
-  UserRoundPlus,
-  X,
-} from "lucide-react";
+import { ChevronDown, Plus, X } from "lucide-react";
+import { CalendarPlus, ClipboardPlus, Hospital, KeyRound, LogOut, Menu, Search, UserRoundPlus } from "@/components/icons";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { CommandPalette } from "@/components/command-palette";
 import { ToastProvider } from "@/components/toast";

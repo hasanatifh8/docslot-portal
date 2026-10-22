@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ScrollText, Search } from "lucide-react";
+import { ScrollText, Search } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { fmt } from "@/lib/format";

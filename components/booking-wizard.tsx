@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { AlertTriangle, BadgeCheck, CalendarCheck2, CalendarDays, Clock, MessageCircle, Stethoscope, UserRound } from "lucide-react";
+import { AlertTriangle, BadgeCheck, CalendarCheck2, CalendarDays, Clock, MessageCircle, Stethoscope, UserRound } from "@/components/icons";
 import { bookAppointment } from "@/app/actions/appointments";
 import { Banner, Button, Card, Chip, Field, Input, buttonClass, cn } from "@/components/ui";
 import { WizardFooter, WizardSteps } from "@/components/wizard";

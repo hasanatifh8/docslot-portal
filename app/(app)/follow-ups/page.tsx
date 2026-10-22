@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarCheck2, CalendarPlus, CalendarSync } from "lucide-react";
+import { CalendarCheck2, CalendarPlus, CalendarSync } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { can } from "@/lib/rbac";

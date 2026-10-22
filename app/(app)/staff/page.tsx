@@ -1,4 +1,4 @@
-import { BadgePlus, IdCard, UserRoundCog } from "lucide-react";
+import { BadgePlus, IdCard, UserRoundCog } from "@/components/icons";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
 import { ROLE_LABELS, isRole } from "@/lib/rbac";
