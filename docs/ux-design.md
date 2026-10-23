@@ -227,6 +227,25 @@ features, front-desk / doctor / owner showcases, onboarding steps, pricing
 (edit `PLANS` in `app/page.tsx`), FAQ and a **Book a demo** form. Requests are
 stored as leads and listed, with status, on the platform admin page (`/admin`).
 
+### 3.12 Platform console (`/admin`, platform admin only)
+
+- **Overview:** totals across hospitals (active/suspended, patients, visits and
+  collections in the last 30 days) and a usage table with last activity.
+- **Hospital control** (`/admin/hospitals/<id>`): usage stats; edit name,
+  booking code, phone, address, timezone, monthly target; suspend/reactivate
+  (suspending signs everyone out); recent audit activity.
+- **Staff of any hospital:** reset password (a 12-character temporary
+  password is generated, shown once, and must be changed at next sign-in),
+  edit name/email/role, deactivate/reactivate, add users. The last active
+  administrator can't be removed or demoted.
+- **Support mode ("Open as …"):** signs the platform admin into the hospital
+  as a chosen user for up to 2 hours, with a red banner and an
+  "Exit to platform console" button. Entries made meanwhile show
+  "(via platform support)" in the audit log; support mode can't change the
+  user's own password; suspended hospitals can still be opened to investigate.
+- Every console action is written to the hospital's audit log as
+  "Platform admin".
+
 ## 4. Responsive behaviour
 
 | Width | Layout |

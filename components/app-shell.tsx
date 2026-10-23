@@ -10,6 +10,8 @@ import { ToastProvider } from "@/components/toast";
 import { EcgLine, Kbd, cn } from "@/components/ui";
 import { Logo } from "@/components/brand";
 import { logoutAction } from "@/app/actions/auth";
+import { exitSupportMode } from "@/app/actions/platform-hospitals";
+import { LifeBuoy } from "lucide-react";
 import { ROLE_LABELS, can, isRole } from "@/lib/rbac";
 
 export function AppShell({
@@ -17,12 +19,15 @@ export function AppShell({
   userName,
   role,
   initials,
+  support,
   children,
 }: {
   clinicName: string;
   userName: string;
   role: string;
   initials: string;
+  /** Platform-admin support session: shown as a banner with an exit button. */
+  support?: { until: string } | null;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -103,6 +108,15 @@ export function AppShell({
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
+          {support && (
+            <div role="status" className="sticky top-0 z-30 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-gradient-to-r from-rose-600 to-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-md">
+              <LifeBuoy className="h-4 w-4" />
+              Support mode — you are viewing {clinicName} as {userName.replace(" (via platform support)", "")}. Changes are logged as platform support. Ends {support.until}.
+              <form action={exitSupportMode}>
+                <button className="rounded-full bg-white/20 px-3 py-1 ring-1 ring-white/40 hover:bg-white/30">Exit to platform console</button>
+              </form>
+            </div>
+          )}
           <TopBar role={role} onMenu={() => setOpen(true)} />
           <main className="min-w-0 flex-1">
             <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8">{children}</div>

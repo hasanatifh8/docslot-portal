@@ -52,6 +52,7 @@ const passwordSchema = z
 /** Signed-in user changes their own password (also clears a forced change). */
 export async function changePassword(_prev: PasswordState, formData: FormData): Promise<PasswordState> {
   const user = await requireUser();
+  if (user.supportMode) return { error: "Support mode can't change a user's password — use “Reset password” in the platform console." };
   const parsed = passwordSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   if (!(await verifyPassword(parsed.data.current, user.passwordHash))) return { error: "Your current password is wrong." };

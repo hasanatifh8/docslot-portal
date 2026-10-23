@@ -14,9 +14,12 @@ export async function verifyPassword(pw: string, hash: string) {
   return bcrypt.compare(pw, hash);
 }
 
-export async function createSession(userId: string) {
+const SUPPORT_MAX_AGE = 60 * 60 * 2; // support sessions end after 2 hours
+
+export async function createSession(userId: string, opts: { impersonatedBy?: string } = {}) {
+  const maxAge = opts.impersonatedBy ? SUPPORT_MAX_AGE : MAX_AGE;
   const session = await prisma.session.create({
-    data: { userId, expiresAt: new Date(Date.now() + MAX_AGE * 1000) },
+    data: { userId, expiresAt: new Date(Date.now() + maxAge * 1000), impersonatedBy: opts.impersonatedBy ?? null },
   });
   const store = await cookies();
   store.set(COOKIE, session.id, {
@@ -24,7 +27,7 @@ export async function createSession(userId: string) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: MAX_AGE,
+    maxAge,
   });
 }
 
@@ -44,11 +47,16 @@ export async function getCurrentUser() {
     where: { id },
     include: { user: { include: { clinic: true } } },
   });
-  if (!session || session.expiresAt < new Date() || !session.user.active || !session.user.clinic.active) {
+  const support = !!session?.impersonatedBy;
+  // Support sessions may open suspended hospitals / inactive accounts to investigate.
+  if (!session || session.expiresAt < new Date() || (!support && (!session.user.active || !session.user.clinic.active))) {
     if (session) await prisma.session.delete({ where: { id } }).catch(() => {});
     return null;
   }
-  return session.user;
+  // In support mode every audit entry and screen shows it wasn't the real user.
+  return support
+    ? { ...session.user, name: `${session.user.name} (via platform support)`, supportMode: true as boolean, supportUntil: session.expiresAt as Date | null }
+    : { ...session.user, supportMode: false as boolean, supportUntil: null as Date | null };
 }
 
 /** Use in server components / actions that require auth. */

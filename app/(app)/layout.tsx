@@ -17,8 +17,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .toUpperCase();
 
   return (
-    <AppShell clinicName={user.clinic.name} userName={user.name} role={user.role} initials={initials}>
-      {user.mustChangePassword ? (
+    <AppShell
+      clinicName={user.clinic.name}
+      userName={user.name}
+      role={user.role}
+      initials={initials}
+      support={user.supportMode && user.supportUntil ? { until: user.supportUntil.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: user.clinic.timezone }) } : null}
+    >
+      {user.mustChangePassword && !user.supportMode ? (
         // First sign-in with a password someone else chose: replace it before anything else.
         <div className="mx-auto max-w-lg">
           <Card>

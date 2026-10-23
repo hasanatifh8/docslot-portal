@@ -101,6 +101,8 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
+  // Set when the platform admin opened this hospital in support mode
+  impersonatedBy String?
   createdAt DateTime @default(now())
 }
 

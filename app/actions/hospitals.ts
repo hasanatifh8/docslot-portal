@@ -63,16 +63,3 @@ export async function createHospital(_prev: HospitalFormState, formData: FormDat
   revalidatePath("/admin");
   return { ok: `${d.hospitalName} created (code "${code}"). ${d.adminEmail} can now sign in.`, savedAt: Date.now() };
 }
-
-/** Suspend / reactivate a hospital. Suspended hospitals' staff are signed out and can't sign in. */
-export async function toggleHospital(formData: FormData) {
-  await requirePlatformAdmin({ throwOnDeny: true });
-  const id = String(formData.get("id"));
-  const clinic = await prisma.clinic.findUnique({ where: { id } });
-  if (!clinic) return;
-  await prisma.$transaction([
-    prisma.clinic.update({ where: { id }, data: { active: !clinic.active } }),
-    ...(clinic.active ? [prisma.session.deleteMany({ where: { user: { clinicId: id } } })] : []),
-  ]);
-  revalidatePath("/admin");
-}
