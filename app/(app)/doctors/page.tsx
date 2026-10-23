@@ -3,7 +3,6 @@ import { requirePermission } from "@/lib/auth";
 import { WEEKDAYS } from "@/lib/format";
 import { minToHHMM } from "@/lib/slots";
 import {
-  addDoctor,
   toggleDoctor,
   deleteDoctor,
   setWorkingHours,
@@ -32,6 +31,7 @@ import {
   PageHeader,
   Select,
 } from "@/components/ui";
+import { AddDoctorForm, DoctorLogin } from "@/components/doctor-forms";
 
 export default async function DoctorsPage() {
   const user = await requirePermission("doctors.manage");
@@ -41,6 +41,7 @@ export default async function DoctorsPage() {
       orderBy: { createdAt: "asc" },
       include: {
         workingHours: true,
+        user: { select: { email: true, active: true } },
         department: true,
         leaves: { where: { endDate: { gte: new Date(new Date().getTime() - 86400_000) } }, orderBy: { startDate: "asc" } },
         _count: { select: { visits: true, appointments: true } },
@@ -112,54 +113,10 @@ export default async function DoctorsPage() {
       <Card>
         <CardHeader>
           <CardTitle icon={BadgePlus}>Add a doctor</CardTitle>
+          <CardDescription>Creates the doctor&apos;s profile for booking and billing — and, if you fill in the sign-in, their login too.</CardDescription>
         </CardHeader>
         <CardBody>
-          <form action={addDoctor} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Name">
-              <Input name="name" required placeholder="Dr. Mehra" />
-            </Field>
-            <Field label="Specialty">
-              <Input name="specialty" required placeholder="Cardiologist" />
-            </Field>
-            <Field label="Department">
-              <Select name="departmentId" defaultValue="">
-                <option value="">None</option>
-                {departments.map((dep) => (
-                  <option key={dep.id} value={dep.id}>
-                    {dep.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Qualification" hint="Printed on prescriptions">
-              <Input name="qualification" placeholder="MBBS, MD" />
-            </Field>
-            <Field label="Registration no." hint="Medical council registration">
-              <Input name="registrationNo" placeholder="MMC 123456" />
-            </Field>
-            <div className="hidden sm:block" />
-            <Field label="Slot length" hint="Minutes per appointment">
-              <Input name="slotMinutes" type="number" defaultValue={15} min={5} max={240} />
-            </Field>
-            <Field label="Buffer" hint="Gap between appointments, minutes">
-              <Input name="bufferMinutes" type="number" defaultValue={0} min={0} max={120} />
-            </Field>
-            <Field label="Consultation fee (₹)" hint="New visit">
-              <Input name="consultFee" inputMode="decimal" defaultValue="500" />
-            </Field>
-            <Field label="Follow-up fee (₹)" hint="Within the follow-up window">
-              <Input name="followUpFee" inputMode="decimal" defaultValue="0" />
-            </Field>
-            <Field label="Follow-up window" hint="Days after a visit that count as follow-up">
-              <Input name="followUpDays" type="number" defaultValue={7} min={0} max={60} />
-            </Field>
-            <Field label="Room / cabin" hint="Shown on the token display">
-              <Input name="room" placeholder="3" />
-            </Field>
-            <div className="sm:col-span-2">
-              <Button type="submit">Add doctor</Button>
-            </div>
-          </form>
+          <AddDoctorForm departments={departments} />
         </CardBody>
       </Card>
 
@@ -213,6 +170,7 @@ export default async function DoctorsPage() {
               </div>
             </CardHeader>
             <CardBody className="space-y-6">
+              <DoctorLogin doctorId={d.id} login={d.user} />
               <form action={updateDoctorPractice} className="flex flex-wrap items-end gap-3 rounded-xl bg-slate-50 p-3">
                 <input type="hidden" name="id" value={d.id} />
                 <IndianRupee className="mb-2.5 h-4 w-4 text-brand-500" />

@@ -107,3 +107,39 @@ export async function resetStaffPassword(_prev: StaffFormState, formData: FormDa
   await audit(admin, "staff.password_reset", { entity: "user", id }, `Reset password for ${target.name}`);
   return { ok: true };
 }
+
+/** Give an existing doctor profile its sign-in (from the Doctors page). */
+export async function createDoctorLogin(_prev: StaffFormState, formData: FormData): Promise<StaffFormState> {
+  const admin = await requirePermission("staff.manage", { throwOnDeny: true });
+  const parsed = z
+    .object({
+      doctorId: z.string().min(1),
+      email: z.string().trim().toLowerCase().email("Enter a valid email"),
+      password: z.string().min(8, "Password must be at least 8 characters"),
+    })
+    .safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+  const doctor = await prisma.doctor.findFirst({ where: { id: d.doctorId, clinicId: admin.clinicId } });
+  if (!doctor) return { error: "Doctor not found." };
+  const linkError = await checkDoctorLink(admin.clinicId, "doctor", doctor.id);
+  if (linkError) return { error: linkError };
+  if (await prisma.user.findUnique({ where: { email: d.email } })) {
+    return { error: "An account with that email already exists." };
+  }
+  await prisma.user.create({
+    data: {
+      clinicId: admin.clinicId,
+      name: doctor.name,
+      email: d.email,
+      role: "doctor",
+      doctorId: doctor.id,
+      passwordHash: await hashPassword(d.password),
+      mustChangePassword: true,
+    },
+  });
+  await audit(admin, "staff.create", { entity: "user" }, `Created sign-in ${d.email} for ${doctor.name}`);
+  revalidatePath("/doctors");
+  revalidatePath("/staff");
+  return { ok: true, savedAt: Date.now() };
+}

@@ -189,6 +189,10 @@ before their follow-up (`lib/reminders.ts`).
 - Doctors: room, consultation / follow-up fee, follow-up window, working hours,
   **leave** (blocks slots everywhere; "Cancel N bookings & notify patients").
   Doctors with history can't be deleted (deactivate instead).
+- **Doctor sign-in:** "Add a doctor" has an optional *Sign-in for this doctor*
+  section (email + temporary password) that creates their login in the same
+  step. Every doctor card shows "Signs in as …" or, if there's no login yet, a
+  one-line "Create sign-in" form. Other staff are added under **Staff**.
 - Settings: hospital details & reception phone, **service price list**, closed
   days, own WhatsApp number (token stored, never shown again).
 - Staff get a temporary password and **must set their own on first sign-in**;

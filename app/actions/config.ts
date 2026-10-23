@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requirePermission } from "@/lib/auth";
+import { hashPassword, requirePermission } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { toPaise, rupees } from "@/lib/money";
 import { fmt, parseDateOnly } from "@/lib/format";
@@ -30,15 +30,53 @@ const doctorSchema = z.object({
   followUpDays: z.coerce.number().int().min(0).max(60).default(7),
 });
 
-export async function addDoctor(formData: FormData) {
+export type DoctorFormState = { error?: string; ok?: string; savedAt?: number };
+
+const loginSchema = z.object({
+  loginEmail: z
+    .string()
+    .optional()
+    .transform((s) => s?.trim().toLowerCase() || null)
+    .pipe(z.string().email("Enter a valid sign-in email").nullable()),
+  loginPassword: z.string().optional().transform((s) => s || null),
+});
+
+/** Add a doctor profile, and optionally their sign-in in the same step. */
+export async function addDoctor(_prev: DoctorFormState, formData: FormData): Promise<DoctorFormState> {
   const user = await requirePermission("doctors.manage", { throwOnDeny: true });
-  const d = doctorSchema.parse(Object.fromEntries(formData));
+  const fields = Object.fromEntries(formData);
+  const parsed = doctorSchema.safeParse(fields);
+  if (!parsed.success) return { error: "Enter the doctor's name and specialty (at least 2 characters each)." };
+  const login = loginSchema.safeParse(fields);
+  if (!login.success) return { error: login.error.issues[0].message };
+  const { loginEmail, loginPassword } = login.data;
+  if (loginEmail && (!loginPassword || loginPassword.length < 8)) return { error: "Temporary password must be at least 8 characters." };
+  if (!loginEmail && loginPassword) return { error: "Enter the doctor's sign-in email, or clear the password." };
+  if (loginEmail && (await prisma.user.findUnique({ where: { email: loginEmail } }))) {
+    return { error: "An account with that sign-in email already exists." };
+  }
+
+  const d = parsed.data;
   if (d.departmentId && !(await prisma.department.findFirst({ where: { id: d.departmentId, clinicId: user.clinicId } }))) {
     d.departmentId = null;
   }
-  const doc = await prisma.doctor.create({ data: { ...d, clinicId: user.clinicId } });
-  await audit(user, "doctor.create", { entity: "doctor", id: doc.id }, `Added ${d.name} (${d.specialty}), fee ${rupees(d.consultFee)}`);
+  const passwordHash = loginEmail && loginPassword ? await hashPassword(loginPassword) : null;
+  const doc = await prisma.$transaction(async (tx) => {
+    const doc = await tx.doctor.create({ data: { ...d, clinicId: user.clinicId } });
+    if (loginEmail && passwordHash) {
+      await tx.user.create({
+        data: { clinicId: user.clinicId, name: d.name, email: loginEmail, role: "doctor", doctorId: doc.id, passwordHash, mustChangePassword: true },
+      });
+    }
+    return doc;
+  });
+  await audit(user, "doctor.create", { entity: "doctor", id: doc.id }, `Added ${d.name} (${d.specialty}), fee ${rupees(d.consultFee)}${loginEmail ? `, sign-in ${loginEmail}` : ""}`);
   revalidatePath("/doctors");
+  revalidatePath("/staff");
+  return {
+    ok: loginEmail ? `${d.name} added. They can sign in with ${loginEmail} and the temporary password, and will set their own password.` : `${d.name} added.`,
+    savedAt: Date.now(),
+  };
 }
 
 /** Room, fees and follow-up window — what the front desk and billing use. */
