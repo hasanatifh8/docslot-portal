@@ -5,8 +5,9 @@ registration (UHID, families sharing one phone), appointment booking with live
 slots, OPD check-in with tokens and a waiting-room display, triage with live
 vital-sign checks, a fast doctor consultation screen (templates, dictation,
 drug & ICD-10 auto-complete, allergy alerts, auto summary, signed PDF),
-billing with receipts and day-end cash reports, follow-ups, reports, audit
-log — plus the WhatsApp booking bot, so patients can still book, reschedule
+billing with receipts and day-end cash reports, an AI lab-report reader
+(upload PDFs/photos; results sorted by panel, abnormal values flagged, trends
+across reports), follow-ups, reports, audit log — plus the WhatsApp booking bot, so patients can still book, reschedule
 and get reminders entirely in chat.
 
 **Screen-by-screen UX guide:** [`docs/ux-design.md`](docs/ux-design.md).
@@ -132,7 +133,9 @@ the webhook flow locally.
 2. **Host — [Vercel](https://vercel.com) free (Hobby) tier:** import this
    GitHub repo, set env vars (`DATABASE_URL`, `APP_URL` = your `*.vercel.app`
    URL, `CRON_SECRET`, and `WHATSAPP_*` / `SHARED_WHATSAPP_NUMBER` once you
-   have them), deploy.
+   have them, `ANTHROPIC_API_KEY` for the lab-report reader), deploy.
+   Note: Vercel caps request bodies at 4.5 MB, so larger lab PDFs need
+   compressing (or upload pages as photos) on that host.
 3. Apply the schema to the live database once:
    `DATABASE_URL=<neon url> npx prisma db push`
 4. **Reminders — external cron (Vercel Hobby cron only runs once/day, too

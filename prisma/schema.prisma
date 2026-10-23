@@ -62,6 +62,7 @@ model Clinic {
   auditLogs     AuditLog[]
   templates     ConsultTemplate[]
   expenses      Expense[]
+  labReports    LabReport[]
 }
 
 // ─── Portal auth ───────────────────────────────────────────────────────────
@@ -90,6 +91,7 @@ model User {
   payments        Payment[]
   invoicesCreated Invoice[]
   expenses        Expense[]
+  labReports      LabReport[]
 
   visitsCheckedIn Visit[] @relation("VisitCheckedInBy")
   visitsTriaged   Visit[] @relation("VisitTriageBy")
@@ -97,13 +99,13 @@ model User {
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
   // Set when the platform admin opened this hospital in support mode
   impersonatedBy String?
-  createdAt DateTime @default(now())
+  createdAt      DateTime @default(now())
 }
 
 // ─── Scheduling config ─────────────────────────────────────────────────────
@@ -215,6 +217,8 @@ model Patient {
   appointments Appointment[]
   visits       Visit[]
   invoices     Invoice[]
+  labReports   LabReport[]
+  labResults   LabResult[]
 
   @@unique([clinicId, uhid])
   @@index([clinicId, waPhone])
@@ -532,4 +536,69 @@ model Lead {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ─── Lab & diagnostic reports ──────────────────────────────────────────────
+
+// An uploaded report (PDF / photo). The original file is kept unchanged; the
+// AI reader extracts results + a doctor-facing summary (status: processing →
+// ready | failed | unreadable).
+model LabReport {
+  id           String    @id @default(cuid())
+  clinicId     String
+  clinic       Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId    String
+  patient      Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploadedById String?
+  uploadedBy   User?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  file         Bytes
+  status       String    @default("processing")
+  error        String?
+  // Extracted header
+  title        String? // e.g. "Comprehensive full body checkup"
+  labName      String?
+  reportType   String? // blood | urine | imaging | other
+  collectedAt  DateTime? // date only
+  reportedAt   DateTime? // date only
+  nameOnReport String?
+  // AI reader output: { headline, keyFindings[], patterns[], followUp[], nameMismatch }
+  insights     Json?
+  model        String?
+  processedAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  results LabResult[]
+
+  @@index([clinicId, patientId, createdAt])
+  @@index([status])
+}
+
+// One measured value from a report, normalised so the same test can be
+// trended across reports and labs.
+model LabResult {
+  id           String    @id @default(cuid())
+  reportId     String
+  report       LabReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  patientId    String
+  patient      Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  panel        String // see lib/labs.ts PANELS — fixed clinical order
+  test         String // standard name, e.g. "Haemoglobin"
+  testOnReport String?
+  value        String
+  numeric      Float?
+  unit         String?
+  refText      String?
+  refLow       Float?
+  refHigh      Float?
+  flag         String // normal | low | high | critical_low | critical_high | abnormal | unknown
+  page         Int?
+  sortOrder    Int       @default(0)
+  // Collection date copied from the report, for trends
+  takenAt      DateTime?
+
+  @@index([patientId, test, takenAt])
+  @@index([reportId])
 }

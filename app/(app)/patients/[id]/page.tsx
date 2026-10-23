@@ -15,6 +15,10 @@ import { VisitStatusBadge } from "@/components/visit-status";
 import { PatientForm } from "@/components/patient-form";
 import { PatientAvatar } from "@/components/patient-avatar";
 import { CheckInLauncher } from "@/components/checkin-launcher";
+import { FlaskConical } from "lucide-react";
+import { labSnapshot } from "@/lib/lab-queries";
+import { FlagChip } from "@/components/lab-ui";
+import { LabProcessingWatcher, LabUpload } from "@/components/lab-upload";
 
 export default async function PatientPage({ params }: PageProps<"/patients/[id]">) {
   const user = await requirePermission("patients.view");
@@ -47,6 +51,8 @@ export default async function PatientPage({ params }: PageProps<"/patients/[id]"
       : Promise.resolve([]),
     canCheckIn ? prisma.visit.groupBy({ by: ["doctorId"], where: { clinicId: user.clinicId, status: { in: OPEN_STATUSES } }, _count: true }) : Promise.resolve([]),
   ]);
+  const labs = can(user.role, "labs.view") ? await labSnapshot(user.clinicId, patient.id) : null;
+  const processingLabs = labs ? await prisma.labReport.count({ where: { patientId: patient.id, status: "processing" } }) : 0;
   const queueDoctors = doctors.map((d) => ({ ...d, waiting: openCounts.find((c) => c.doctorId === d.id)?._count ?? 0 }));
   const due = patient.invoices.filter((i) => i.status === "unpaid" || i.status === "partial").reduce((s, i) => s + i.total - i.paid, 0);
   const nextFollowUp = patient.visits.find((v) => v.followUpDate && !v.followUpClosedAt && v.followUpDate >= new Date(new Date().getTime() - 30 * 86400_000));
@@ -201,6 +207,47 @@ export default async function PatientPage({ params }: PageProps<"/patients/[id]"
         </div>
 
         <div className="space-y-5">
+          {labs && (
+            <Card>
+              <CardHeader className="flex items-center justify-between">
+                <CardTitle icon={FlaskConical}>Lab reports</CardTitle>
+                <Link href={`/patients/${patient.id}/labs`} className="text-xs font-medium text-brand-700 hover:underline">
+                  All results →
+                </Link>
+              </CardHeader>
+              <CardBody className="space-y-3">
+                <LabProcessingWatcher active={processingLabs > 0} />
+                {labs.latest ? (
+                  <Link href={`/patients/${patient.id}/labs/${labs.latest.id}`} className="block rounded-xl bg-violet-50/60 p-3 ring-1 ring-violet-200/60 hover:bg-violet-50">
+                    <div className="text-[11px] font-semibold text-violet-800">
+                      {labs.latest.title ?? "Latest report"}
+                      {labs.latest.collectedAt && ` · ${fmt(labs.latest.collectedAt, "UTC", "d MMM yyyy")}`}
+                    </div>
+                    <p className="mt-0.5 text-sm text-slate-800">{(labs.latest.insights as { headline?: string } | null)?.headline}</p>
+                  </Link>
+                ) : (
+                  <p className="text-sm text-slate-500">No reports yet.</p>
+                )}
+                {labs.abnormal.length > 0 && (
+                  <ul className="space-y-1">
+                    {labs.abnormal.slice(0, 6).map((a) => (
+                      <li key={a.test} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate text-slate-700">{a.test}</span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="tabular font-semibold text-slate-900">
+                            {a.value} <span className="font-normal text-slate-400">{a.unit}</span>
+                          </span>
+                          <FlagChip flag={a.flag} />
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {can(user.role, "labs.upload") && <LabUpload patientId={patient.id} compact />}
+              </CardBody>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle icon={IdCard}>Details</CardTitle>

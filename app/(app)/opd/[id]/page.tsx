@@ -15,6 +15,7 @@ import { Badge, Button, Card, CardBody, CardHeader, CardTitle, buttonClass, cn }
 import { TriageForm } from "@/components/triage-form";
 import { ConsultationWorkspace, type RxItem, type Template } from "@/components/consultation-workspace";
 import { AddendumForm, SendRxButton } from "@/components/visit-actions";
+import { labSnapshot } from "@/lib/lab-queries";
 import { AutoRefresh, VisitStatusBadge, VisitStepper } from "@/components/visit-status";
 import { PatientAvatar } from "@/components/patient-avatar";
 
@@ -65,6 +66,7 @@ export default async function VisitPage({ params }: PageProps<"/opd/[id]">) {
       : Promise.resolve([]),
     showConsultForm ? doctorFavourites(visit.doctorId) : Promise.resolve([] as DrugDefault[]),
   ]);
+  const labs = showConsultForm && can(user.role, "labs.view") ? await labSnapshot(user.clinicId, visit.patientId) : null;
 
   const vitals: Record<VitalKey, number | null> = {
     bpSystolic: visit.bpSystolic,
@@ -303,6 +305,17 @@ export default async function VisitPage({ params }: PageProps<"/opd/[id]">) {
             })
           )}
           favourites={favourites}
+          labs={
+            labs && (labs.latest || labs.abnormal.length)
+              ? {
+                  href: labs.latest ? `/patients/${p.id}/labs/${labs.latest.id}` : `/patients/${p.id}/labs`,
+                  headline: (labs.latest?.insights as { headline?: string } | null)?.headline ?? null,
+                  title: labs.latest?.title ?? null,
+                  date: labs.latest?.collectedAt ? fmt(labs.latest.collectedAt, "UTC", "d MMM yyyy") : null,
+                  abnormal: labs.abnormal.map((a) => ({ test: a.test, value: a.value, unit: a.unit, flag: a.flag })),
+                }
+              : null
+          }
           lastRx={last ? { date: fmt(last.checkedInAt, tz, "d MMM yyyy"), diagnosis: last.diagnosis, items: last.prescriptionItems.map(toRx) } : null}
         />
       ) : (

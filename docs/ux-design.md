@@ -246,6 +246,31 @@ stored as leads and listed, with status, on the platform admin page (`/admin`).
 - Every console action is written to the hospital's audit log as
   "Platform admin".
 
+### 3.13 Lab reports (`/patients/<id>/labs`)
+
+- **Upload** from the patient profile or the labs page: drag and drop, file
+  picker or (on phones) "Take photo"; PDF/JPEG/PNG/WebP, up to 10 files, with
+  per-file progress and clear reasons for rejected files.
+- **AI reader** (needs `ANTHROPIC_API_KEY`) runs in the background; the page
+  shows "Reading report…" and refreshes itself. It extracts every result with
+  value, unit and printed reference range, maps tests to standard names and a
+  fixed clinical panel order (CBC → inflammation → diabetes → lipids → liver →
+  kidney → … → other), and re-checks low/high flags against the printed range.
+- **Report view:** "At a glance" headline, key findings grouped by severity
+  (with the numbers), "Consistent with" and "Consider" lists, then results by
+  panel with abnormal rows highlighted, previous value with direction, and a
+  link to the page in the original. "Abnormal only" filter. The original PDF
+  or photo sits alongside. A warning appears if the name on the report doesn't
+  match the patient.
+- **Trends:** the labs page lines up every test across the last 5 reports with
+  a sparkline over the reference band.
+- **Doctor's consultation:** a Labs card shows the latest headline and the
+  current abnormal values, linked to the full report.
+- Failed or unreadable reports keep the original and offer "Read again".
+  Delete is limited to administrators and doctors and is audited.
+- Everything AI-generated is labelled as decision support to verify against
+  the original.
+
 ## 4. Responsive behaviour
 
 | Width | Layout |
@@ -258,5 +283,6 @@ All main screens were checked at 375 px with no horizontal scrolling.
 
 ## 5. Not in this release (next phases)
 
-IPD / beds / discharge summary, pharmacy & inventory, lab/radiology orders,
+IPD / beds / discharge summary, pharmacy & inventory, lab/radiology orders
+(ordering; uploaded reports are supported),
 insurance / TPA, ABDM/ABHA integration, two-factor login, patient portal.

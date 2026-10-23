@@ -26,6 +26,10 @@ const PERMISSIONS = {
   "opd.triage": ["admin", "junior_doctor", "nurse"],
   "opd.consult": ["admin", "doctor"],
   "followups.view": ["admin", "receptionist", "doctor", "nurse"],
+  // Lab & diagnostic reports: anyone clinical can view and upload; removing is admin/doctor.
+  "labs.view": ALL,
+  "labs.upload": ALL,
+  "labs.delete": ["admin", "doctor"],
   "billing.view": ["admin", "receptionist", "accountant"],
   "billing.collect": ["admin", "receptionist"],
   // Discounts and refunds move money out — admin only.

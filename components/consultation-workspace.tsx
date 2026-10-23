@@ -6,6 +6,7 @@ import { Check, ClipboardCopy, Plus, X } from "lucide-react";
 import { AlertTriangle, BookmarkPlus, CalendarClock, FileCheck2, History, LayoutTemplate, ListChecks, MessageCircle, Pill, Repeat2, Sparkles, Stethoscope, Trash2 } from "@/components/icons";
 import { deleteTemplate, saveConsultation, saveTemplate } from "@/app/actions/opd";
 import { Banner, Button, Chip, Input, Kbd, Textarea, cn } from "@/components/ui";
+import { FlaskConical } from "lucide-react";
 import { Autocomplete } from "@/components/autocomplete";
 import { MicButton, appendText } from "@/components/voice-input";
 import { useToast } from "@/components/toast";
@@ -62,6 +63,7 @@ export function ConsultationWorkspace({
   templates: initialTemplates,
   favourites,
   lastRx,
+  labs,
 }: {
   visitId: string;
   initial: Notes;
@@ -72,6 +74,8 @@ export function ConsultationWorkspace({
   templates: Template[];
   favourites: DrugDefault[];
   lastRx: { date: string; diagnosis: string | null; items: RxItem[] } | null;
+  /** Latest lab summary + currently abnormal values (from uploaded reports). */
+  labs?: { href: string; headline: string | null; title: string | null; date: string | null; abnormal: { test: string; value: string; unit: string | null; flag: string }[] } | null;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -493,6 +497,29 @@ export function ConsultationWorkspace({
           <p className="text-[13px] leading-relaxed text-slate-700">{summary}</p>
           <p className="mt-2 text-[10px] text-slate-400">Written automatically from what you enter. Updates as you type.</p>
         </div>
+        {labs && (
+          <a href={labs.href} className="block rounded-2xl bg-white p-4 shadow-sm ring-1 ring-brand-900/[0.06] hover:ring-violet-300">
+            <span className="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <FlaskConical className="h-3.5 w-3.5 text-violet-500" /> Labs{labs.date ? ` · ${labs.date}` : ""}
+            </span>
+            {labs.headline && <p className="text-[13px] leading-snug font-medium text-slate-800">{labs.headline}</p>}
+            {labs.abnormal.length > 0 ? (
+              <ul className="mt-2 space-y-1">
+                {labs.abnormal.slice(0, 8).map((a) => (
+                  <li key={a.test} className="flex justify-between gap-2 text-xs">
+                    <span className="truncate text-slate-600">{a.test}</span>
+                    <span className={cn("tabular shrink-0 font-semibold", a.flag.startsWith("critical") ? "text-rose-700" : "text-amber-700")}>
+                      {a.value} {a.unit} {a.flag.includes("low") ? "↓" : a.flag.includes("high") ? "↑" : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1 text-xs text-emerald-700">Latest results within range</p>
+            )}
+            <span className="mt-2 block text-[11px] font-medium text-violet-700">Open reports →</span>
+          </a>
+        )}
         {lastRx && (
           <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-brand-900/[0.06]">
             <span className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
